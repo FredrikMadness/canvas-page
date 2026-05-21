@@ -95,7 +95,7 @@ function renderNode(
           <div class="canvas-file-label">
             <a
               href={resolveRelative(slug, fileSlug)}
-              class="canvas-file-link internal"
+              class="canvas-file-link internal internal-link"
               data-slug={fileSlug}
             >
               {filename}
@@ -108,7 +108,7 @@ function renderNode(
             ) : (
               <a
                 href={resolveRelative(slug, fileSlug)}
-                class="canvas-file-link internal"
+                class="canvas-file-link internal internal-link"
                 data-slug={fileSlug}
               >
                 {filename}
@@ -131,7 +131,7 @@ function renderNode(
           <div class="canvas-link-label">
             <a
               href={node.url}
-              class="canvas-link external"
+              class="canvas-link external external-link"
               target="_blank"
               rel="noopener noreferrer"
             >
