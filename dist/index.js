@@ -11294,7 +11294,7 @@ function renderNode(node, renderedTexts, embeddedContent, slug2) {
             "a",
             {
               href: resolveRelative(slug2, fileSlug),
-              class: "canvas-file-link internal",
+              class: "canvas-file-link internal internal-link",
               "data-slug": fileSlug,
               children: filename
             }
@@ -11305,7 +11305,7 @@ function renderNode(node, renderedTexts, embeddedContent, slug2) {
           "a",
           {
             href: resolveRelative(slug2, fileSlug),
-            class: "canvas-file-link internal",
+            class: "canvas-file-link internal internal-link",
             "data-slug": fileSlug,
             children: filename
           }
@@ -11324,7 +11324,7 @@ function renderNode(node, renderedTexts, embeddedContent, slug2) {
           "a",
           {
             href: node.url,
-            class: "canvas-link external",
+            class: "canvas-link external external-link",
             target: "_blank",
             rel: "noopener noreferrer",
             children: hostname
