@@ -21,7 +21,7 @@ function slugifyFilePath(fp, excludeExt) {
   fp = stripSlashes(fp);
   const ext = getFileExtension(fp);
   const withoutFileExt = fp.replace(new RegExp(ext + "$"), "");
-  const finalExt = excludeExt || [".md", ".html", void 0].includes(ext) ? "" : ext;
+  const finalExt = [".md", ".html", void 0].includes(ext) ? "" : ext;
   let slug2 = _sluggify(withoutFileExt);
   if (endsWith(slug2, "_index")) {
     slug2 = slug2.replace(/_index$/, "index");
@@ -11255,7 +11255,96 @@ function getEdgeAnchor(node, side) {
       return { x: cx, y: cy };
   }
 }
-function renderNode(node, renderedTexts, embeddedContent, slug2) {
+var headerRegex = /^h[1-6]$/;
+function findPage(fileSlug, allFiles) {
+  let page = allFiles.find((f3) => f3.slug === fileSlug);
+  if (!page) {
+    const dotIdx = fileSlug.lastIndexOf(".");
+    const slashIdx = fileSlug.lastIndexOf("/");
+    if (dotIdx > slashIdx + 1) {
+      const stripped = fileSlug.slice(0, dotIdx);
+      page = allFiles.find((f3) => f3.slug === stripped);
+    }
+  }
+  return page;
+}
+function applySubpath(htmlAst, page, subpath, isBasePage) {
+  if (subpath.startsWith("#^")) {
+    const blockId = subpath.slice(2);
+    const blocks = page.blocks;
+    const blockNode = blocks?.[blockId];
+    if (!blockNode) return void 0;
+    const wrapped = blockNode.tagName === "li" ? { type: "element", tagName: "ul", properties: {}, children: [blockNode] } : blockNode;
+    return { type: "root", children: [wrapped] };
+  }
+  const ref = subpath.startsWith("#") ? subpath.slice(1) : subpath;
+  if (!ref) return htmlAst;
+  if (isBasePage) {
+    const refLower = ref.toLowerCase();
+    for (const child of htmlAst.children) {
+      if (child.type !== "element") continue;
+      const found = findBasesView(child, refLower);
+      if (found) return { type: "root", children: [found] };
+    }
+    return void 0;
+  }
+  let startIdx;
+  let startDepth;
+  let endIdx;
+  for (const [i2, el] of htmlAst.children.entries()) {
+    if (el.type !== "element" || !headerRegex.test(el.tagName)) continue;
+    const depth = Number(el.tagName.substring(1));
+    if (startIdx === void 0 || startDepth === void 0) {
+      if (el.properties?.id === ref) {
+        startIdx = i2;
+        startDepth = depth;
+      }
+    } else if (depth <= startDepth) {
+      endIdx = i2;
+      break;
+    }
+  }
+  if (startIdx === void 0) return void 0;
+  return { type: "root", children: htmlAst.children.slice(startIdx, endIdx) };
+}
+function findBasesView(el, viewName) {
+  const classes = (el.properties?.className ?? []).join(" ");
+  if (classes.includes("bases-view") && !classes.includes("bases-view-container")) {
+    const viewType = el.properties?.dataViewType ?? "";
+    if (viewType.toLowerCase() === viewName) return el;
+  }
+  for (const child of el.children) {
+    if (child.type !== "element") continue;
+    const found = findBasesView(child, viewName);
+    if (found) return found;
+  }
+  return void 0;
+}
+function resolveEmbeddedHtml(fileSlug, canvasSlug, allFiles, subpath, visited) {
+  const resolvedSlug = fileSlug;
+  if (visited?.has(resolvedSlug)) return void 0;
+  const page = findPage(fileSlug, allFiles);
+  if (!page) return void 0;
+  const htmlAst = page.htmlAst;
+  if (!htmlAst) return void 0;
+  const sourceSlug = page.slug;
+  if (!sourceSlug) return void 0;
+  let tree = htmlAst;
+  if (subpath) {
+    const isBasePage = "basesData" in page;
+    const sub = applySubpath(htmlAst, page, subpath, isBasePage);
+    if (!sub) return void 0;
+    tree = sub;
+  }
+  const rebased = {
+    ...tree,
+    children: tree.children.map(
+      (child) => child.type === "element" ? normalizeHastElement(child, canvasSlug, sourceSlug) : child
+    )
+  };
+  return toHtml(rebased, { allowDangerousHtml: true });
+}
+function renderNode(node, renderedTexts, slug2, allFiles, visited) {
   const color = resolveColor(node.color);
   const baseStyle = {
     left: `${node.x}px`,
@@ -11275,7 +11364,6 @@ function renderNode(node, renderedTexts, embeddedContent, slug2) {
     case "file": {
       const filename = node.file.split("/").pop()?.replace(/\.md$/, "") ?? node.file;
       const fileSlug = slugifyFilePath(node.file);
-      const embedded = embeddedContent[node.id];
       const isImage = /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$/i.test(node.file);
       if (isImage) {
         return /* @__PURE__ */ u2(
@@ -11288,6 +11376,7 @@ function renderNode(node, renderedTexts, embeddedContent, slug2) {
           }
         );
       }
+      const embedded = resolveEmbeddedHtml(fileSlug, slug2, allFiles, node.subpath, visited);
       return /* @__PURE__ */ u2("div", { class: "canvas-node canvas-node-file", "data-node-id": node.id, style: styleStr, children: [
         /* @__PURE__ */ u2("div", { class: "canvas-file-label", children: [
           /* @__PURE__ */ u2(
@@ -11438,7 +11527,8 @@ var CanvasBody_default = ((userOpts) => {
     const nodes = canvasData.nodes ?? [];
     const edges = canvasData.edges ?? [];
     const renderedTexts = canvasData.renderedTexts ?? {};
-    const embeddedContent = fileData.embeddedContent ?? {};
+    const allFiles = props.allFiles;
+    const visited = /* @__PURE__ */ new Set([slug2]);
     const nodeMap = /* @__PURE__ */ new Map();
     for (const node of nodes) {
       nodeMap.set(node.id, node);
@@ -11592,7 +11682,7 @@ var CanvasBody_default = ((userOpts) => {
               {
                 class: "canvas-nodes",
                 style: `transform:translate(${-minX + padding}px,${-minY + padding}px)`,
-                children: nodes.map((node) => renderNode(node, renderedTexts, embeddedContent, slug2))
+                children: nodes.map((node) => renderNode(node, renderedTexts, slug2, allFiles, visited))
               }
             ),
             /* @__PURE__ */ u2(
@@ -11631,35 +11721,6 @@ function preprocessCanvasData(data) {
   }
   return { ...data, renderedTexts };
 }
-function buildEmbeddedContent(data, content3, canvasSlug) {
-  const embeddedHtml = {};
-  for (const node of data.nodes ?? []) {
-    if (node.type !== "file") continue;
-    const fileRef = slugifyFilePath(node.file, true);
-    const match = content3.find(([, vfile]) => {
-      const slug2 = vfile.data.slug;
-      if (!slug2) return false;
-      return slug2 === fileRef || slug2.endsWith(`/${fileRef}`);
-    });
-    if (match) {
-      const [, vfile] = match;
-      const sourceHtmlAst = vfile.data.htmlAst;
-      const sourceSlug = vfile.data.slug;
-      if (sourceHtmlAst && sourceSlug) {
-        const rebased = {
-          ...sourceHtmlAst,
-          children: sourceHtmlAst.children.map(
-            (child) => child.type === "element" ? normalizeHastElement(child, canvasSlug, sourceSlug) : child
-          )
-        };
-        embeddedHtml[node.id] = toHtml(rebased, {
-          allowDangerousHtml: true
-        });
-      }
-    }
-  }
-  return embeddedHtml;
-}
 var canvasMatcher = ({ fileData }) => {
   return "canvasData" in fileData;
 };
@@ -11668,7 +11729,7 @@ var CanvasPage = (opts) => ({
   priority: 20,
   fileExtensions: [".canvas"],
   match: canvasMatcher,
-  generate({ ctx, content: content3 }) {
+  generate({ ctx }) {
     const canvasFiles = ctx.allFiles.filter((fp) => fp.endsWith(".canvas"));
     const virtualPages = [];
     for (const filePath of canvasFiles) {
@@ -11683,15 +11744,13 @@ var CanvasPage = (opts) => ({
       const baseName = filePath.replace(/\.canvas$/, "").split("/").pop() ?? "Canvas";
       const slug2 = slugifyFilePath(filePath);
       const processedData = preprocessCanvasData(canvasData);
-      const embeddedContent = buildEmbeddedContent(canvasData, content3, slug2);
       virtualPages.push({
         slug: slug2,
         title: baseName,
         data: {
           frontmatter: { title: baseName, tags: [] },
           canvasData: processedData,
-          canvasOptions: opts,
-          embeddedContent
+          canvasOptions: opts
         }
       });
     }
