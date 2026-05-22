@@ -103,10 +103,29 @@
     "dependencies": [],
     "defaultOrder": 50,
     "defaultEnabled": true,
-    "defaultOptions": {},
+    "defaultOptions": {
+      "enableInteraction": true,
+      "initialZoom": 1,
+      "minZoom": 0.1,
+      "maxZoom": 5
+    },
     "frames": {
       "CanvasFrame": {
         "exportName": "CanvasFrame"
+      }
+    },
+    "optionSchema": {
+      "enableInteraction": {
+        "type": "boolean"
+      },
+      "initialZoom": {
+        "type": "number"
+      },
+      "minZoom": {
+        "type": "number"
+      },
+      "maxZoom": {
+        "type": "number"
       }
     }
   },
