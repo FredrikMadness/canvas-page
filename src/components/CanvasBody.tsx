@@ -2,10 +2,17 @@ import type {
   QuartzComponent,
   QuartzComponentProps,
   QuartzComponentConstructor,
+  QuartzPluginData,
   FilePath,
   FullSlug,
 } from "@quartz-community/types";
-import { resolveRelative, slugifyFilePath } from "@quartz-community/utils/path";
+import {
+  resolveRelative,
+  slugifyFilePath,
+  normalizeHastElement,
+} from "@quartz-community/utils/path";
+import { toHtml } from "hast-util-to-html";
+import type { Element as HastElement, Root as HastRoot } from "hast";
 import type { CanvasData, CanvasNode, CanvasEdge, CanvasPageOptions } from "../types";
 import { CANVAS_PRESET_COLORS } from "../types";
 import style from "./styles/canvas.scss";
@@ -37,11 +44,146 @@ function getEdgeAnchor(node: CanvasNode, side: string | undefined): { x: number;
   }
 }
 
+const headerRegex = /^h[1-6]$/;
+
+function findPage(fileSlug: FullSlug, allFiles: QuartzPluginData[]): QuartzPluginData | undefined {
+  let page = allFiles.find((f) => f.slug === fileSlug);
+  if (!page) {
+    // Virtual pages from pageType plugins have slugs without extensions
+    const dotIdx = fileSlug.lastIndexOf(".");
+    const slashIdx = fileSlug.lastIndexOf("/");
+    if (dotIdx > slashIdx + 1) {
+      const stripped = fileSlug.slice(0, dotIdx) as FullSlug;
+      page = allFiles.find((f) => f.slug === stripped);
+    }
+  }
+  return page;
+}
+
+/**
+ * Extract a subset of a HAST tree based on a subpath reference.
+ *
+ * - `#^blockid`  → block transclude from page.blocks
+ * - `#view-name` on a .base page → filter to the named bases view
+ * - `#heading`   on other pages  → extract the heading section
+ */
+function applySubpath(
+  htmlAst: HastRoot,
+  page: QuartzPluginData,
+  subpath: string,
+  isBasePage: boolean,
+): HastRoot | undefined {
+  if (subpath.startsWith("#^")) {
+    const blockId = subpath.slice(2);
+    const blocks = (page as Record<string, unknown>).blocks as
+      | Record<string, HastElement>
+      | undefined;
+    const blockNode = blocks?.[blockId];
+    if (!blockNode) return undefined;
+    const wrapped =
+      blockNode.tagName === "li"
+        ? { type: "element" as const, tagName: "ul", properties: {}, children: [blockNode] }
+        : blockNode;
+    return { type: "root", children: [wrapped] };
+  }
+
+  const ref = subpath.startsWith("#") ? subpath.slice(1) : subpath;
+  if (!ref) return htmlAst;
+
+  if (isBasePage) {
+    // For .base files, #view-name selects a specific view by data-view-type or
+    // the view tab label. Walk the htmlAst to find the matching view div and
+    // return only that view, marked active.
+    const refLower = ref.toLowerCase();
+    for (const child of htmlAst.children) {
+      if (child.type !== "element") continue;
+      const found = findBasesView(child as HastElement, refLower);
+      if (found) return { type: "root", children: [found] };
+    }
+    return undefined;
+  }
+
+  // Header transclude: find the heading whose id matches, take content until
+  // the next heading of equal or lesser depth.
+  let startIdx: number | undefined;
+  let startDepth: number | undefined;
+  let endIdx: number | undefined;
+  for (const [i, el] of htmlAst.children.entries()) {
+    if (el.type !== "element" || !headerRegex.test((el as HastElement).tagName)) continue;
+    const depth = Number((el as HastElement).tagName.substring(1));
+    if (startIdx === undefined || startDepth === undefined) {
+      if ((el as HastElement).properties?.id === ref) {
+        startIdx = i;
+        startDepth = depth;
+      }
+    } else if (depth <= startDepth) {
+      endIdx = i;
+      break;
+    }
+  }
+  if (startIdx === undefined) return undefined;
+  return { type: "root", children: htmlAst.children.slice(startIdx, endIdx) };
+}
+
+function findBasesView(el: HastElement, viewName: string): HastElement | undefined {
+  const classes = ((el.properties?.className ?? []) as string[]).join(" ");
+  if (classes.includes("bases-view") && !classes.includes("bases-view-container")) {
+    const viewType = (el.properties?.dataViewType as string) ?? "";
+    if (viewType.toLowerCase() === viewName) return el;
+  }
+  for (const child of el.children) {
+    if (child.type !== "element") continue;
+    const found = findBasesView(child as HastElement, viewName);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+export function resolveEmbeddedHtml(
+  fileSlug: FullSlug,
+  canvasSlug: FullSlug,
+  allFiles: QuartzPluginData[],
+  subpath?: string,
+  visited?: Set<string>,
+): string | undefined {
+  const resolvedSlug = fileSlug as string;
+  if (visited?.has(resolvedSlug)) return undefined;
+
+  const page = findPage(fileSlug, allFiles);
+  if (!page) return undefined;
+
+  const htmlAst = (page as Record<string, unknown>).htmlAst as HastRoot | undefined;
+  if (!htmlAst) return undefined;
+
+  const sourceSlug = page.slug as FullSlug | undefined;
+  if (!sourceSlug) return undefined;
+
+  let tree = htmlAst;
+  if (subpath) {
+    const isBasePage = "basesData" in (page as Record<string, unknown>);
+    const sub = applySubpath(htmlAst, page, subpath, isBasePage);
+    if (!sub) return undefined;
+    tree = sub;
+  }
+
+  const rebased: HastRoot = {
+    ...tree,
+    children: tree.children.map((child) =>
+      child.type === "element"
+        ? (normalizeHastElement(child as HastElement, canvasSlug, sourceSlug) as typeof child)
+        : child,
+    ),
+  };
+
+  return toHtml(rebased as Parameters<typeof toHtml>[0], { allowDangerousHtml: true });
+}
+
 function renderNode(
   node: CanvasNode,
   renderedTexts: Record<string, string>,
-  embeddedContent: Record<string, string>,
   slug: FullSlug,
+  allFiles: QuartzPluginData[],
+  visited: Set<string>,
 ): unknown {
   const color = resolveColor(node.color);
   const baseStyle: Record<string, string> = {
@@ -75,7 +217,6 @@ function renderNode(
     case "file": {
       const filename = node.file.split("/").pop()?.replace(/\.md$/, "") ?? node.file;
       const fileSlug = slugifyFilePath(node.file as FilePath) as FullSlug;
-      const embedded = embeddedContent[node.id];
       const isImage = /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$/i.test(node.file);
 
       if (isImage) {
@@ -89,6 +230,8 @@ function renderNode(
           </div>
         );
       }
+
+      const embedded = resolveEmbeddedHtml(fileSlug, slug, allFiles, node.subpath, visited);
 
       return (
         <div class="canvas-node canvas-node-file" data-node-id={node.id} style={styleStr}>
@@ -265,7 +408,8 @@ export default ((userOpts?: CanvasPageOptions) => {
     const nodes = canvasData.nodes ?? [];
     const edges = canvasData.edges ?? [];
     const renderedTexts = canvasData.renderedTexts ?? {};
-    const embeddedContent = (fileData.embeddedContent as Record<string, string>) ?? {};
+    const allFiles = props.allFiles;
+    const visited = new Set<string>([slug]);
 
     const nodeMap = new Map<string, CanvasNode>();
     for (const node of nodes) {
@@ -408,7 +552,7 @@ export default ((userOpts?: CanvasPageOptions) => {
               class="canvas-nodes"
               style={`transform:translate(${-minX + padding}px,${-minY + padding}px)`}
             >
-              {nodes.map((node) => renderNode(node, renderedTexts, embeddedContent, slug))}
+              {nodes.map((node) => renderNode(node, renderedTexts, slug, allFiles, visited))}
             </div>
             <svg
               class="canvas-edges"
