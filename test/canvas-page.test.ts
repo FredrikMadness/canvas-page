@@ -1,9 +1,15 @@
 import { describe, it, expect, vi } from "vitest";
-import { createCtx, createProcessedContent } from "./helpers";
+import { createCtx } from "./helpers";
 import { CanvasPage } from "../src/pageType";
 import type { CanvasData } from "../src/types";
-import type { ProcessedContent, FullSlug, FilePath } from "@quartz-community/types";
+import type {
+  ProcessedContent,
+  FullSlug,
+  FilePath,
+  QuartzPluginData,
+} from "@quartz-community/types";
 import type { Root as HastRoot } from "hast";
+import { resolveEmbeddedHtml } from "../src/components/CanvasBody";
 
 const sampleCanvas: CanvasData = {
   nodes: [
@@ -89,22 +95,7 @@ describe("CanvasPage", () => {
     expect(pages[0]!.title).toBe("Concept Civic Board");
   });
 
-  describe("embedded content rebasing", () => {
-    const canvasWithFileNode: CanvasData = {
-      nodes: [
-        {
-          id: "file-node",
-          type: "file",
-          x: 0,
-          y: 0,
-          width: 200,
-          height: 100,
-          file: "plugins/canvaspage.md",
-        },
-      ],
-      edges: [],
-    };
-
+  describe("embedded content resolution", () => {
     const buildHtmlAstWithRelativeLink = (href: string): HastRoot => ({
       type: "root",
       children: [
@@ -124,62 +115,272 @@ describe("CanvasPage", () => {
       ],
     });
 
-    it("rebases relative hrefs inside embedded htmlAst to the canvas page's slug", async () => {
-      vi.mocked(
-        (await import("fs")).readFileSync as unknown as ReturnType<typeof vi.fn>,
-      ).mockReturnValueOnce(JSON.stringify(canvasWithFileNode));
-
-      const ctx = createCtx({
-        allFiles: ["canvas.canvas" as FilePath, "plugins/CanvasPage.md" as FilePath],
-      });
-
+    it("rebases relative hrefs inside embedded htmlAst to the canvas page's slug", () => {
+      const canvasSlug = "canvas.canvas" as FullSlug;
       const sourceSlug = "plugins/canvaspage" as FullSlug;
-      const source = createProcessedContent({
-        slug: sourceSlug,
-        htmlAst: buildHtmlAstWithRelativeLink("../layout"),
-      });
+      const allFiles: QuartzPluginData[] = [
+        {
+          slug: sourceSlug,
+          htmlAst: buildHtmlAstWithRelativeLink("../layout"),
+        } as unknown as QuartzPluginData,
+      ];
 
-      const pages = plugin.generate!({
-        content: [source],
-        cfg: ctx.cfg.configuration,
-        ctx,
-      });
+      const embedded = resolveEmbeddedHtml(sourceSlug, canvasSlug, allFiles);
+      expect(embedded).toBeTruthy();
 
-      expect(pages).toHaveLength(1);
-      const embedded = (pages[0]!.data as { embeddedContent: Record<string, string> })
-        .embeddedContent["file-node"]!;
-
-      const canvasSlug = pages[0]!.slug as FullSlug;
-      const m = embedded.match(/href="([^"]+)"/);
+      const m = embedded!.match(/href="([^"]+)"/);
       expect(m).toBeTruthy();
       const href = m![1]!;
       const resolved = new URL(href, `https://example.com/${canvasSlug}`).pathname;
       expect(resolved).toBe("/layout");
     });
 
-    it("leaves absolute URLs in embedded htmlAst untouched", async () => {
-      vi.mocked(
-        (await import("fs")).readFileSync as unknown as ReturnType<typeof vi.fn>,
-      ).mockReturnValueOnce(JSON.stringify(canvasWithFileNode));
+    it("leaves absolute URLs in embedded htmlAst untouched", () => {
+      const canvasSlug = "canvas.canvas" as FullSlug;
+      const sourceSlug = "plugins/canvaspage" as FullSlug;
+      const allFiles: QuartzPluginData[] = [
+        {
+          slug: sourceSlug,
+          htmlAst: buildHtmlAstWithRelativeLink("https://example.com/external"),
+        } as unknown as QuartzPluginData,
+      ];
 
-      const ctx = createCtx({
-        allFiles: ["canvas.canvas" as FilePath, "plugins/CanvasPage.md" as FilePath],
-      });
-
-      const source = createProcessedContent({
-        slug: "plugins/canvaspage" as FullSlug,
-        htmlAst: buildHtmlAstWithRelativeLink("https://example.com/external"),
-      });
-
-      const pages = plugin.generate!({
-        content: [source],
-        cfg: ctx.cfg.configuration,
-        ctx,
-      });
-
-      const embedded = (pages[0]!.data as { embeddedContent: Record<string, string> })
-        .embeddedContent["file-node"];
+      const embedded = resolveEmbeddedHtml(sourceSlug, canvasSlug, allFiles);
       expect(embedded).toContain('href="https://example.com/external"');
+    });
+
+    it("resolves virtual pages by stripping file extension from slug", () => {
+      const canvasSlug = "canvas.canvas" as FullSlug;
+      const fileSlug = "untitled.base" as FullSlug;
+      const allFiles: QuartzPluginData[] = [
+        {
+          slug: "untitled" as FullSlug,
+          htmlAst: buildHtmlAstWithRelativeLink("./other"),
+        } as unknown as QuartzPluginData,
+      ];
+
+      const embedded = resolveEmbeddedHtml(fileSlug, canvasSlug, allFiles);
+      expect(embedded).toBeTruthy();
+      expect(embedded).toContain("other");
+    });
+
+    it("returns undefined when page is not found", () => {
+      const embedded = resolveEmbeddedHtml(
+        "nonexistent" as FullSlug,
+        "canvas.canvas" as FullSlug,
+        [],
+      );
+      expect(embedded).toBeUndefined();
+    });
+
+    it("returns undefined when page has no htmlAst", () => {
+      const allFiles: QuartzPluginData[] = [
+        { slug: "test" as FullSlug } as unknown as QuartzPluginData,
+      ];
+      const embedded = resolveEmbeddedHtml(
+        "test" as FullSlug,
+        "canvas.canvas" as FullSlug,
+        allFiles,
+      );
+      expect(embedded).toBeUndefined();
+    });
+
+    it("returns undefined for circular embed (self-reference)", () => {
+      const canvasSlug = "my.canvas" as FullSlug;
+      const allFiles: QuartzPluginData[] = [
+        {
+          slug: canvasSlug,
+          htmlAst: buildHtmlAstWithRelativeLink("./test"),
+        } as unknown as QuartzPluginData,
+      ];
+      const visited = new Set<string>([canvasSlug]);
+      const embedded = resolveEmbeddedHtml(canvasSlug, canvasSlug, allFiles, undefined, visited);
+      expect(embedded).toBeUndefined();
+    });
+
+    it("returns undefined when visited set blocks a canvas-in-canvas cycle", () => {
+      const canvasA = "a.canvas" as FullSlug;
+      const canvasB = "b.canvas" as FullSlug;
+      const allFiles: QuartzPluginData[] = [
+        {
+          slug: canvasB,
+          htmlAst: buildHtmlAstWithRelativeLink("./x"),
+        } as unknown as QuartzPluginData,
+      ];
+      const visited = new Set<string>([canvasA, canvasB]);
+      const embedded = resolveEmbeddedHtml(canvasB, canvasA, allFiles, undefined, visited);
+      expect(embedded).toBeUndefined();
+    });
+
+    it("extracts header section via #heading subpath", () => {
+      const htmlAst: HastRoot = {
+        type: "root",
+        children: [
+          {
+            type: "element",
+            tagName: "h2",
+            properties: { id: "intro" },
+            children: [{ type: "text", value: "Intro" }],
+          },
+          {
+            type: "element",
+            tagName: "p",
+            properties: {},
+            children: [{ type: "text", value: "Intro content" }],
+          },
+          {
+            type: "element",
+            tagName: "h2",
+            properties: { id: "details" },
+            children: [{ type: "text", value: "Details" }],
+          },
+          {
+            type: "element",
+            tagName: "p",
+            properties: {},
+            children: [{ type: "text", value: "Details content" }],
+          },
+        ],
+      };
+
+      const allFiles: QuartzPluginData[] = [
+        { slug: "doc" as FullSlug, htmlAst } as unknown as QuartzPluginData,
+      ];
+
+      const embedded = resolveEmbeddedHtml(
+        "doc" as FullSlug,
+        "canvas.canvas" as FullSlug,
+        allFiles,
+        "#intro",
+      );
+      expect(embedded).toBeTruthy();
+      expect(embedded).toContain("Intro content");
+      expect(embedded).not.toContain("Details content");
+    });
+
+    it("extracts block via #^blockid subpath", () => {
+      const htmlAst: HastRoot = { type: "root", children: [] };
+      const blocks: Record<string, import("hast").Element> = {
+        myblock: {
+          type: "element",
+          tagName: "p",
+          properties: {},
+          children: [{ type: "text", value: "Block content here" }],
+        },
+      };
+
+      const allFiles: QuartzPluginData[] = [
+        { slug: "doc" as FullSlug, htmlAst, blocks } as unknown as QuartzPluginData,
+      ];
+
+      const embedded = resolveEmbeddedHtml(
+        "doc" as FullSlug,
+        "canvas.canvas" as FullSlug,
+        allFiles,
+        "#^myblock",
+      );
+      expect(embedded).toBeTruthy();
+      expect(embedded).toContain("Block content here");
+    });
+
+    it("filters bases view via #view-name subpath", () => {
+      const htmlAst: HastRoot = {
+        type: "root",
+        children: [
+          {
+            type: "element",
+            tagName: "div",
+            properties: { className: ["bases-view-container"] },
+            children: [
+              {
+                type: "element",
+                tagName: "div",
+                properties: { className: ["bases-view"], dataViewType: "table" },
+                children: [{ type: "text", value: "Table view" }],
+              },
+              {
+                type: "element",
+                tagName: "div",
+                properties: { className: ["bases-view"], dataViewType: "list" },
+                children: [{ type: "text", value: "List view" }],
+              },
+            ],
+          },
+        ],
+      };
+
+      const allFiles: QuartzPluginData[] = [
+        { slug: "mybase" as FullSlug, htmlAst, basesData: {} } as unknown as QuartzPluginData,
+      ];
+
+      const embedded = resolveEmbeddedHtml(
+        "mybase" as FullSlug,
+        "canvas.canvas" as FullSlug,
+        allFiles,
+        "#list",
+      );
+      expect(embedded).toBeTruthy();
+      expect(embedded).toContain("List view");
+      expect(embedded).not.toContain("Table view");
+    });
+
+    it("returns undefined for non-existent heading subpath", () => {
+      const htmlAst: HastRoot = {
+        type: "root",
+        children: [
+          {
+            type: "element",
+            tagName: "h2",
+            properties: { id: "intro" },
+            children: [{ type: "text", value: "Intro" }],
+          },
+        ],
+      };
+
+      const allFiles: QuartzPluginData[] = [
+        { slug: "doc" as FullSlug, htmlAst } as unknown as QuartzPluginData,
+      ];
+
+      const embedded = resolveEmbeddedHtml(
+        "doc" as FullSlug,
+        "canvas.canvas" as FullSlug,
+        allFiles,
+        "#nonexistent",
+      );
+      expect(embedded).toBeUndefined();
+    });
+
+    it("returns undefined for non-existent bases view subpath", () => {
+      const htmlAst: HastRoot = {
+        type: "root",
+        children: [
+          {
+            type: "element",
+            tagName: "div",
+            properties: { className: ["bases-view-container"] },
+            children: [
+              {
+                type: "element",
+                tagName: "div",
+                properties: { className: ["bases-view"], dataViewType: "table" },
+                children: [{ type: "text", value: "Table view" }],
+              },
+            ],
+          },
+        ],
+      };
+
+      const allFiles: QuartzPluginData[] = [
+        { slug: "mybase" as FullSlug, htmlAst, basesData: {} } as unknown as QuartzPluginData,
+      ];
+
+      const embedded = resolveEmbeddedHtml(
+        "mybase" as FullSlug,
+        "canvas.canvas" as FullSlug,
+        allFiles,
+        "#gallery",
+      );
+      expect(embedded).toBeUndefined();
     });
   });
 });
