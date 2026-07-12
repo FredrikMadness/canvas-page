@@ -67,36 +67,42 @@ and that externals are correct.
 
 ## Testing changes in the real site (fast local loop)
 
-The consuming site is the sibling repo `../quartz` (`/Users/fredrik.madsen/git/quartz`). Quartz's
-plugin loader (`quartz/plugins/loader/gitLoader.ts`) treats a source that starts with `./`, `../`,
-or `/` as a **local path and symlinks it** into `.quartz/plugins/<name>` instead of cloning from
-GitHub. We exploit that to skip the push/re-add round-trip entirely.
+The consuming site is the sibling repo `../quartz` (`/Users/fredrik.madsen/git/quartz`). Its
+committed `quartz.config.yaml` uses `source: github:FredrikMadness/canvas-page` — this **must stay
+GitHub** so the Cloudflare CD pipeline (`npx quartz plugin install --from-config`, on a fresh
+checkout with no symlink) can clone the latest published plugin. A committed `../canvas-page` path
+would break CI, since that path only exists on this machine.
 
-**One-time setup** (already done): in `../quartz/quartz.config.yaml`, the canvas-page source is set
-to a local path so it links to this working directory:
+Local dev still uses this working directory directly, via a **symlink** that the installer keeps:
+`.quartz/plugins/canvas-page -> /Users/fredrik.madsen/git/canvas-page`. The plugin installer skips a
+plugin whose dir already exists (`quartz/cli/plugin-git-handlers.js` — "directory already exists"),
+so with the symlink present it never re-clones over it. `.quartz/plugins/` is gitignored, so the
+symlink never leaks into CI. Net effect: **local = symlink, CI = GitHub clone**, from the same
+committed config.
 
-```yaml
-# ../quartz/quartz.config.yaml — LOCAL DEV ONLY, do not commit/deploy
-- source: ../canvas-page # was: github:FredrikMadness/canvas-page
-```
-
-Running the plugin install once creates the symlink
-(`.quartz/plugins/canvas-page -> /Users/fredrik.madsen/git/canvas-page`). After that the loop is:
+Once the symlink exists, the loop is:
 
 1. Edit `src/` here.
 2. `npm run build` (regenerates `dist/`).
 3. Rebuild/serve Quartz in `../quartz` — it reads our fresh `dist/` through the symlink. **No push,
    no re-add.**
 
+**Re-creating the symlink** (after a clean checkout / `.quartz/plugins` wipe removes it):
+
+```bash
+ln -sfn /Users/fredrik.madsen/git/canvas-page ../quartz/.quartz/plugins/canvas-page
+```
+
+(Or temporarily point the config at `../canvas-page`, run the plugin install once to create the
+link, then set it back to `github:` before committing.)
+
 **Node version:** Quartz requires **Node ≥ 22** (it uses `util.styleText`, added in 20.12/22). This
 machine's default `node` is v20.11.1, which fails; use nvm's v22 for any quartz command:
 `nvm use 22` (or prefix PATH with `~/.nvm/versions/node/v22.21.1/bin`). Building _this_ plugin works
 on either version.
 
-**Before deploying the site**, revert the source line back to `github:FredrikMadness/canvas-page`
-(the `../canvas-page` path only resolves on this machine) and make sure any plugin changes are
-actually pushed. The old GitHub-based loop (build → push `origin` → `quartz plugin remove/add
-canvas-page` → build) is the fallback when the symlink isn't set up.
+**Deploying:** just push this repo's `main` — CI clones the latest `main`, so make sure plugin
+changes are pushed (and `dist/` committed) before the site rebuilds.
 
 ## Git / remotes
 
