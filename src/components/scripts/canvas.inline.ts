@@ -242,10 +242,15 @@ function initCanvas() {
         container.style.cursor = "";
       };
 
+      // Cancel native drag-and-drop (e.g. of images) so a left-drag only pans
+      // instead of the browser trying to drag the image at the same time.
+      const onDragStart = (e: DragEvent) => e.preventDefault();
+
       container.addEventListener("wheel", onWheel, { passive: false });
       container.addEventListener("pointerdown", onPointerDown);
       container.addEventListener("pointermove", onPointerMove);
       container.addEventListener("pointerup", onPointerUp);
+      container.addEventListener("dragstart", onDragStart);
 
       let lastTouchDist = 0;
       let lastTouchMidX = 0;
@@ -321,6 +326,7 @@ function initCanvas() {
         container.removeEventListener("pointerdown", onPointerDown);
         container.removeEventListener("pointermove", onPointerMove);
         container.removeEventListener("pointerup", onPointerUp);
+        container.removeEventListener("dragstart", onDragStart);
         container.removeEventListener("touchstart", onTouchStart);
         container.removeEventListener("touchmove", onTouchMove);
         container.removeEventListener("touchend", onTouchEnd);
