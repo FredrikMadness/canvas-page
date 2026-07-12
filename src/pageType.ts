@@ -13,10 +13,16 @@ import CanvasBody from "./components/CanvasBody";
 import type { CanvasData, CanvasPageOptions } from "./types";
 
 function renderMarkdown(text: string): string {
-  return micromark(text, {
+  const html = micromark(text, {
     extensions: [gfm()],
     htmlExtensions: [gfmHtml()],
   });
+  // micromark separates block elements with newlines. Text nodes render with
+  // `white-space: pre-wrap` (to preserve intentional line breaks), which turns
+  // those inter-block newlines into phantom empty lines — inflating the node's
+  // height and causing spurious scrollbars. Strip newlines that sit *between*
+  // tags; newlines inside text (soft breaks) and code (entity-escaped) are kept.
+  return html.replace(/>\n+</g, "><").trim();
 }
 
 function preprocessCanvasData(

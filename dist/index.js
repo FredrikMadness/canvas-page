@@ -10782,6 +10782,27 @@ var canvas_default = `.canvas-page {
   flex: 1;
   min-height: 0;
 }
+.canvas-node-content > :first-child {
+  margin-top: 0;
+}
+.canvas-node-content > :last-child {
+  margin-bottom: 0;
+}
+.canvas-node-content {
+  scrollbar-width: thin;
+  scrollbar-color: var(--gray) transparent;
+}
+.canvas-node-content::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.canvas-node-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+.canvas-node-content::-webkit-scrollbar-thumb {
+  background: var(--gray);
+  border-radius: 3px;
+}
 
 .canvas-node-text .canvas-node-content {
   white-space: pre-wrap;
@@ -10825,6 +10846,12 @@ var canvas_default = `.canvas-page {
 }
 .canvas-node-file .canvas-file-label a:hover {
   text-decoration: underline;
+}
+.canvas-node-file .canvas-embed-content > :first-child {
+  margin-top: 0;
+}
+.canvas-node-file .canvas-embed-content > :last-child {
+  margin-bottom: 0;
 }
 .canvas-node-file .canvas-embed-content h1,
 .canvas-node-file .canvas-embed-content h2,
@@ -11047,6 +11074,11 @@ var canvas_default = `.canvas-page {
   transition: padding-left 0.2s ease;
 }
 
+.canvas-init-no-transition,
+.canvas-init-no-transition * {
+  transition: none !important;
+}
+
 .page[data-frame=canvas] .canvas-stage {
   width: 100%;
   height: 100%;
@@ -11210,7 +11242,7 @@ var canvas_default = `.canvas-page {
 }`;
 
 // src/components/scripts/canvas.inline.ts
-var canvas_inline_default = 'function oe(){let g=document.querySelectorAll(".canvas-container");if(g.length!==0)for(let t of Array.from(g)){if(t.dataset.initialized==="true")continue;t.dataset.initialized="true";let H=t.querySelector(".canvas-viewport");if(!H)continue;let Q=t.dataset.enableInteraction!=="false",ee=t.dataset.defaultFullscreen==="true",d=t.closest(\'.page[data-frame="canvas"]\');if(d&&!ee){let n=d.style.transition;d.style.transition="none",d.classList.add("canvas-sidebar-open"),d.offsetWidth,requestAnimationFrame(()=>{d.style.transition=n})}let b=parseFloat(t.dataset.minZoom??"")||.1,S=parseFloat(t.dataset.maxZoom??"")||5,s=parseFloat(t.dataset.initialZoom??"")||1,l=0,c=0,Y=!1,R=0,P=0,v=()=>{H.style.transform=`translate(${l}px, ${c}px) scale(${s})`},X=()=>{let n=t.getBoundingClientRect(),a=parseFloat(H.style.width)||1e3,u=parseFloat(H.style.height)||1e3,i=n.width/a,h=n.height/u;s=Math.min(i,h,1)*.9,s=Math.max(b,Math.min(S,s)),l=(n.width-a*s)/2,c=(n.height-u*s)/2,v()};X();let F=s,w=l,I=c,L=t.querySelector(".canvas-reset-view"),f=()=>{if(!L)return;let n=Math.abs(s-F)>.001||Math.abs(l-w)>1||Math.abs(c-I)>1;L.style.display=n?"flex":"none"},q=(n,a,u)=>{let i=s;s=Math.max(b,Math.min(S,s*n)),l=a-(a-l)*(s/i),c=u-(u-c)*(s/i),v(),f()},m=[];if(Q){let u=e=>e.deltaMode!==0?e.deltaY>0?.7692307692307692:1.3:Math.exp(-e.deltaY*.004),i=e=>e.deltaMode!==0?!1:e.deltaX!==0||!Number.isInteger(e.deltaY)?!0:Math.abs(e.deltaY)<40,h=(e,o)=>Math.abs(o.deltaX)>Math.abs(o.deltaY)?!(e.scrollWidth<=e.clientWidth||e.scrollLeft<=0&&o.deltaX<0||e.scrollLeft+e.clientWidth>=e.scrollWidth-1&&o.deltaX>0):!(e.scrollHeight<=e.clientHeight||e.scrollTop<=0&&o.deltaY<0||e.scrollTop+e.clientHeight>=e.scrollHeight-1&&o.deltaY>0),T=e=>{let o=t.getBoundingClientRect(),r=e.clientX-o.left,y=e.clientY-o.top;if(e.ctrlKey||e.metaKey){e.preventDefault(),q(u(e),r,y);return}let E=e.target instanceof HTMLElement?e.target.closest(".canvas-node:not(.canvas-node-group)"):null;if(E){let p=E.querySelector(".canvas-node-content");if(p instanceof HTMLElement&&h(p,e))return;e.preventDefault();return}e.preventDefault(),i(e)?(l-=e.deltaX,c-=e.deltaY,v(),f()):q(u(e),r,y)},A=e=>{if(e.button===0&&!(e.target instanceof HTMLElement&&(e.target.closest("a")||e.target.closest("button")))){if(e.target instanceof HTMLElement){let o=e.target.closest(".canvas-node-content");if(o&&o.scrollHeight>o.clientHeight){let r=o.getBoundingClientRect();if(e.clientX>=r.right-16)return}}Y=!0,R=e.clientX-l,P=e.clientY-c,t.setPointerCapture(e.pointerId)}},_=e=>{Y&&(l=e.clientX-R,c=e.clientY-P,v(),f())},D=()=>{Y=!1};t.addEventListener("wheel",T,{passive:!1}),t.addEventListener("pointerdown",A),t.addEventListener("pointermove",_),t.addEventListener("pointerup",D);let x=0,C=0,O=0,k=!1,N=e=>{if(e.length<2||!e[0]||!e[1])return 0;let o=e[0].clientX-e[1].clientX,r=e[0].clientY-e[1].clientY;return Math.sqrt(o*o+r*r)},V=e=>{if(e.touches.length===2){let o=e.touches[0],r=e.touches[1];if(!o||!r)return;e.preventDefault(),k=!0,Y=!1,x=N(e.touches),C=(o.clientX+r.clientX)/2,O=(o.clientY+r.clientY)/2}},$=e=>{if(e.touches.length===2&&k){let o=e.touches[0],r=e.touches[1];if(!o||!r)return;e.preventDefault();let y=N(e.touches),E=(o.clientX+r.clientX)/2,p=(o.clientY+r.clientY)/2,U=t.getBoundingClientRect(),j=E-U.left,G=p-U.top,ne=y/x,J=s;s=Math.max(b,Math.min(S,s*ne)),l=j-(j-l)*(s/J),c=G-(G-c)*(s/J),l+=E-C,c+=p-O,x=y,C=E,O=p,v(),f()}},K=e=>{e.touches.length<2&&(k=!1)};t.addEventListener("touchstart",V,{passive:!1}),t.addEventListener("touchmove",$,{passive:!1}),t.addEventListener("touchend",K),m.push(()=>{t.removeEventListener("wheel",T),t.removeEventListener("pointerdown",A),t.removeEventListener("pointermove",_),t.removeEventListener("pointerup",D),t.removeEventListener("touchstart",V),t.removeEventListener("touchmove",$),t.removeEventListener("touchend",K)})}let B=d?.querySelector(".canvas-sidebar-toggle");if(d&&B){let n=()=>{let a=t.getBoundingClientRect();d.classList.toggle("canvas-sidebar-open"),requestAnimationFrame(()=>{let i=t.getBoundingClientRect().left-a.left;l+=i,w+=i,v(),f()})};B.addEventListener("click",n),m.push(()=>{B.removeEventListener("click",n)})}let W=t.querySelector(".canvas-zoom-in"),Z=t.querySelector(".canvas-zoom-out"),z=n=>{let a=t.getBoundingClientRect();q(n,a.width/2,a.height/2)};if(W){let n=()=>{z(1.25)};W.addEventListener("click",n),m.push(()=>W.removeEventListener("click",n))}if(Z){let n=()=>{z(.8)};Z.addEventListener("click",n),m.push(()=>Z.removeEventListener("click",n))}if(L){let n=()=>{X(),F=s,w=l,I=c,f()};L.addEventListener("click",n),m.push(()=>L.removeEventListener("click",n))}let M=t.querySelector(".canvas-fullscreen-toggle");if(M){let n=M.querySelector(".canvas-fullscreen-enter"),a=M.querySelector(".canvas-fullscreen-exit"),u=()=>{let T=document.fullscreenElement===t;n&&(n.style.display=T?"none":""),a&&(a.style.display=T?"":"none")},i=()=>{document.fullscreenElement===t?document.exitFullscreen():t.requestFullscreen()},h=()=>{u(),requestAnimationFrame(()=>{X(),F=s,w=l,I=c,f()})};M.addEventListener("click",i),document.addEventListener("fullscreenchange",h),m.push(()=>{M.removeEventListener("click",i),document.removeEventListener("fullscreenchange",h)})}let te=t.querySelectorAll(".canvas-iframe-wrapper iframe");for(let n of Array.from(te))n.addEventListener("error",()=>{let a=n.parentElement?.querySelector(".canvas-iframe-fallback");a&&(n.style.display="none",a.style.display="flex")});typeof window<"u"&&window.addCleanup&&window.addCleanup(()=>{for(let n of m)n();t.dataset.initialized="false"})}}if(typeof document<"u"){let g=()=>{oe()};document.addEventListener("nav",g),document.addEventListener("render",g)}\n';
+var canvas_inline_default = 'function oe(){let g=document.querySelectorAll(".canvas-container");if(g.length!==0)for(let t of Array.from(g)){if(t.dataset.initialized==="true")continue;t.dataset.initialized="true";let H=t.querySelector(".canvas-viewport");if(!H)continue;let Q=t.dataset.enableInteraction!=="false",ee=t.dataset.defaultFullscreen==="true",d=t.closest(\'.page[data-frame="canvas"]\');d&&!ee&&(d.classList.add("canvas-init-no-transition","canvas-sidebar-open"),d.offsetWidth,requestAnimationFrame(()=>{d.classList.remove("canvas-init-no-transition")}));let b=parseFloat(t.dataset.minZoom??"")||.1,S=parseFloat(t.dataset.maxZoom??"")||5,s=parseFloat(t.dataset.initialZoom??"")||1,c=0,r=0,Y=!1,R=0,P=0,v=()=>{H.style.transform=`translate(${c}px, ${r}px) scale(${s})`},X=()=>{let n=t.getBoundingClientRect(),a=parseFloat(H.style.width)||1e3,u=parseFloat(H.style.height)||1e3,i=n.width/a,h=n.height/u;s=Math.min(i,h,1)*.9,s=Math.max(b,Math.min(S,s)),c=(n.width-a*s)/2,r=(n.height-u*s)/2,v()};X();let F=s,w=c,I=r,L=t.querySelector(".canvas-reset-view"),f=()=>{if(!L)return;let n=Math.abs(s-F)>.001||Math.abs(c-w)>1||Math.abs(r-I)>1;L.style.display=n?"flex":"none"},q=(n,a,u)=>{let i=s;s=Math.max(b,Math.min(S,s*n)),c=a-(a-c)*(s/i),r=u-(u-r)*(s/i),v(),f()},m=[];if(Q){let u=e=>e.deltaMode!==0?e.deltaY>0?.7692307692307692:1.3:Math.exp(-e.deltaY*.004),i=e=>e.deltaMode!==0?!1:e.deltaX!==0||!Number.isInteger(e.deltaY)?!0:Math.abs(e.deltaY)<40,h=(e,o)=>Math.abs(o.deltaX)>Math.abs(o.deltaY)?!(e.scrollWidth<=e.clientWidth||e.scrollLeft<=0&&o.deltaX<0||e.scrollLeft+e.clientWidth>=e.scrollWidth-1&&o.deltaX>0):!(e.scrollHeight<=e.clientHeight||e.scrollTop<=0&&o.deltaY<0||e.scrollTop+e.clientHeight>=e.scrollHeight-1&&o.deltaY>0),T=e=>{let o=t.getBoundingClientRect(),l=e.clientX-o.left,y=e.clientY-o.top;if(e.ctrlKey||e.metaKey){e.preventDefault(),q(u(e),l,y);return}let E=e.target instanceof HTMLElement?e.target.closest(".canvas-node:not(.canvas-node-group)"):null;if(E){let p=E.querySelector(".canvas-node-content");if(p instanceof HTMLElement&&h(p,e))return;e.preventDefault();return}e.preventDefault(),i(e)?(c-=e.deltaX,r-=e.deltaY,v(),f()):q(u(e),l,y)},A=e=>{if(e.button===0&&!(e.target instanceof HTMLElement&&(e.target.closest("a")||e.target.closest("button")))){if(e.target instanceof HTMLElement){let o=e.target.closest(".canvas-node-content");if(o&&o.scrollHeight>o.clientHeight){let l=o.getBoundingClientRect();if(e.clientX>=l.right-16)return}}Y=!0,R=e.clientX-c,P=e.clientY-r,t.setPointerCapture(e.pointerId)}},_=e=>{Y&&(c=e.clientX-R,r=e.clientY-P,v(),f())},D=()=>{Y=!1};t.addEventListener("wheel",T,{passive:!1}),t.addEventListener("pointerdown",A),t.addEventListener("pointermove",_),t.addEventListener("pointerup",D);let x=0,C=0,O=0,k=!1,N=e=>{if(e.length<2||!e[0]||!e[1])return 0;let o=e[0].clientX-e[1].clientX,l=e[0].clientY-e[1].clientY;return Math.sqrt(o*o+l*l)},V=e=>{if(e.touches.length===2){let o=e.touches[0],l=e.touches[1];if(!o||!l)return;e.preventDefault(),k=!0,Y=!1,x=N(e.touches),C=(o.clientX+l.clientX)/2,O=(o.clientY+l.clientY)/2}},$=e=>{if(e.touches.length===2&&k){let o=e.touches[0],l=e.touches[1];if(!o||!l)return;e.preventDefault();let y=N(e.touches),E=(o.clientX+l.clientX)/2,p=(o.clientY+l.clientY)/2,U=t.getBoundingClientRect(),j=E-U.left,G=p-U.top,ne=y/x,J=s;s=Math.max(b,Math.min(S,s*ne)),c=j-(j-c)*(s/J),r=G-(G-r)*(s/J),c+=E-C,r+=p-O,x=y,C=E,O=p,v(),f()}},K=e=>{e.touches.length<2&&(k=!1)};t.addEventListener("touchstart",V,{passive:!1}),t.addEventListener("touchmove",$,{passive:!1}),t.addEventListener("touchend",K),m.push(()=>{t.removeEventListener("wheel",T),t.removeEventListener("pointerdown",A),t.removeEventListener("pointermove",_),t.removeEventListener("pointerup",D),t.removeEventListener("touchstart",V),t.removeEventListener("touchmove",$),t.removeEventListener("touchend",K)})}let B=d?.querySelector(".canvas-sidebar-toggle");if(d&&B){let n=()=>{let a=t.getBoundingClientRect();d.classList.toggle("canvas-sidebar-open"),requestAnimationFrame(()=>{let i=t.getBoundingClientRect().left-a.left;c+=i,w+=i,v(),f()})};B.addEventListener("click",n),m.push(()=>{B.removeEventListener("click",n)})}let W=t.querySelector(".canvas-zoom-in"),Z=t.querySelector(".canvas-zoom-out"),z=n=>{let a=t.getBoundingClientRect();q(n,a.width/2,a.height/2)};if(W){let n=()=>{z(1.25)};W.addEventListener("click",n),m.push(()=>W.removeEventListener("click",n))}if(Z){let n=()=>{z(.8)};Z.addEventListener("click",n),m.push(()=>Z.removeEventListener("click",n))}if(L){let n=()=>{X(),F=s,w=c,I=r,f()};L.addEventListener("click",n),m.push(()=>L.removeEventListener("click",n))}let M=t.querySelector(".canvas-fullscreen-toggle");if(M){let n=M.querySelector(".canvas-fullscreen-enter"),a=M.querySelector(".canvas-fullscreen-exit"),u=()=>{let T=document.fullscreenElement===t;n&&(n.style.display=T?"none":""),a&&(a.style.display=T?"":"none")},i=()=>{document.fullscreenElement===t?document.exitFullscreen():t.requestFullscreen()},h=()=>{u(),requestAnimationFrame(()=>{X(),F=s,w=c,I=r,f()})};M.addEventListener("click",i),document.addEventListener("fullscreenchange",h),m.push(()=>{M.removeEventListener("click",i),document.removeEventListener("fullscreenchange",h)})}let te=t.querySelectorAll(".canvas-iframe-wrapper iframe");for(let n of Array.from(te))n.addEventListener("error",()=>{let a=n.parentElement?.querySelector(".canvas-iframe-fallback");a&&(n.style.display="none",a.style.display="flex")});typeof window<"u"&&window.addCleanup&&window.addCleanup(()=>{for(let n of m)n();t.dataset.initialized="false"})}}if(typeof document<"u"){let g=()=>{oe()};document.addEventListener("nav",g),document.addEventListener("render",g)}\n';
 var l;
 l = { __e: function(n2, l2, u3, t2) {
   for (var i2, r2, o2; l2 = l2.__; ) if ((i2 = l2.__c) && !i2.__) try {
@@ -11709,10 +11741,11 @@ var CanvasBody_default = ((userOpts) => {
 
 // src/pageType.ts
 function renderMarkdown(text5) {
-  return micromark(text5, {
+  const html5 = micromark(text5, {
     extensions: [gfm()],
     htmlExtensions: [gfmHtml()]
   });
+  return html5.replace(/>\n+</g, "><").trim();
 }
 function preprocessCanvasData(data) {
   const renderedTexts = {};

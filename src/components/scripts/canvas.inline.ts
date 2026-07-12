@@ -15,16 +15,15 @@ function initCanvas() {
 
     // Show the sidebar by default; `defaultFullscreen` opts a canvas into
     // starting with it hidden (canvas fills the viewport). Applied before
-    // centering so the initial fit accounts for the sidebar's width — with the
-    // frame's padding transition suppressed so the first layout is final (no
-    // off-center flash), then restored so manual toggles still animate.
+    // centering so the initial fit accounts for the sidebar's width. All
+    // transitions in the frame are disabled for this first layout so the
+    // sidebar is simply *present* rather than sliding/animating in, then
+    // re-enabled so manual toggles still animate.
     if (frame && !defaultFullscreen) {
-      const prevTransition = frame.style.transition;
-      frame.style.transition = "none";
-      frame.classList.add("canvas-sidebar-open");
-      void frame.offsetWidth; // force reflow so the sidebar-open width applies now
+      frame.classList.add("canvas-init-no-transition", "canvas-sidebar-open");
+      void frame.offsetWidth; // force reflow so the open layout commits with no transition
       requestAnimationFrame(() => {
-        frame.style.transition = prevTransition;
+        frame.classList.remove("canvas-init-no-transition");
       });
     }
 
