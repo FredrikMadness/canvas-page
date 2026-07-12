@@ -11140,6 +11140,7 @@ var canvas_default = `.canvas-page {
   position: relative;
   width: 100%;
   height: 100%;
+  box-sizing: border-box;
   overflow: hidden;
   padding-left: 0;
   transition: padding-left 0.2s ease;

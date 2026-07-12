@@ -418,6 +418,10 @@
   position: relative;
   width: 100%;
   height: 100%;
+  // border-box so the sidebar's padding-left is subtracted from the width
+  // rather than added to it — otherwise the open sidebar pushes the stage off
+  // the right edge and the canvas centers within an oversized container.
+  box-sizing: border-box;
   overflow: hidden;
   padding-left: 0;
   transition: padding-left 0.2s ease;
