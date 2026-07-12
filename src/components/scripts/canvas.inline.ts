@@ -205,13 +205,16 @@ function initCanvas() {
       };
 
       const onPointerDown = (e: PointerEvent) => {
-        if (e.button !== 0) return;
-        if (e.target instanceof HTMLElement) {
-          if (e.target.closest("a") || e.target.closest("button")) return;
-        }
+        const middle = e.button === 1;
+        if (e.button !== 0 && !middle) return;
 
-        // Don't start panning when clicking on a scrollbar
-        if (e.target instanceof HTMLElement) {
+        if (middle) {
+          // Middle-drag pans from anywhere; suppress the browser's middle-click
+          // autoscroll (needs a non-passive pointerdown, which is the default).
+          e.preventDefault();
+        } else if (e.target instanceof HTMLElement) {
+          // Left button: don't hijack links/buttons or a card's scrollbar.
+          if (e.target.closest("a") || e.target.closest("button")) return;
           const scrollable = e.target.closest(".canvas-node-content");
           if (scrollable && scrollable.scrollHeight > scrollable.clientHeight) {
             const rect = scrollable.getBoundingClientRect();
@@ -222,6 +225,7 @@ function initCanvas() {
         isPanning = true;
         startX = e.clientX - panX;
         startY = e.clientY - panY;
+        container.style.cursor = "grabbing";
         container.setPointerCapture(e.pointerId);
       };
 
@@ -235,6 +239,7 @@ function initCanvas() {
 
       const onPointerUp = () => {
         isPanning = false;
+        container.style.cursor = "";
       };
 
       container.addEventListener("wheel", onWheel, { passive: false });
