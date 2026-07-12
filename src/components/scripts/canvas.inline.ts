@@ -10,6 +10,23 @@ function initCanvas() {
     if (!viewport) continue;
 
     const enableInteraction = container.dataset.enableInteraction !== "false";
+    const defaultFullscreen = container.dataset.defaultFullscreen === "true";
+    const frame = container.closest('.page[data-frame="canvas"]') as HTMLElement | null;
+
+    // Show the sidebar by default; `defaultFullscreen` opts a canvas into
+    // starting with it hidden (canvas fills the viewport). Applied before
+    // centering so the initial fit accounts for the sidebar's width — with the
+    // frame's padding transition suppressed so the first layout is final (no
+    // off-center flash), then restored so manual toggles still animate.
+    if (frame && !defaultFullscreen) {
+      const prevTransition = frame.style.transition;
+      frame.style.transition = "none";
+      frame.classList.add("canvas-sidebar-open");
+      void frame.offsetWidth; // force reflow so the sidebar-open width applies now
+      requestAnimationFrame(() => {
+        frame.style.transition = prevTransition;
+      });
+    }
 
     const minZoom = parseFloat(container.dataset.minZoom ?? "") || 0.1;
     const maxZoom = parseFloat(container.dataset.maxZoom ?? "") || 5;
@@ -73,8 +90,8 @@ function initCanvas() {
       // Wheel-zoom speed knobs (higher = faster):
       //  - sensitivity scales smooth pixel-mode zoom (trackpad pinch, most mice)
       //  - step is the per-notch factor for coarse line/page mode (e.g. FF mouse)
-      const ZOOM_WHEEL_SENSITIVITY = 0.0025;
-      const ZOOM_WHEEL_STEP = 1.2;
+      const ZOOM_WHEEL_SENSITIVITY = 0.004;
+      const ZOOM_WHEEL_STEP = 1.3;
 
       // Wheel input maps to three behaviours, matching Obsidian: a trackpad
       // *pinch* (or Ctrl/Cmd + wheel) zooms, a trackpad *two-finger swipe* pans,
@@ -272,7 +289,6 @@ function initCanvas() {
       });
     }
 
-    const frame = container.closest('.page[data-frame="canvas"]') as HTMLElement | null;
     const sidebarToggle = frame?.querySelector(
       ".canvas-sidebar-toggle",
     ) as HTMLButtonElement | null;

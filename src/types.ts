@@ -119,6 +119,8 @@ export interface CanvasPageOptions {
   minZoom?: number;
   /** Maximum zoom level. Default: 5 */
   maxZoom?: number;
+  /** Start canvas pages fullscreen — sidebar hidden, canvas fills the viewport. Default: false */
+  defaultFullscreen?: boolean;
 }
 
 /** Preset color map: preset number → CSS color value */
