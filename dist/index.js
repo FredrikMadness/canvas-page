@@ -10788,6 +10788,12 @@ var canvas_default = `.canvas-page {
 .canvas-node-content > :last-child {
   margin-bottom: 0;
 }
+.canvas-node-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin: 0;
+}
 .canvas-node-content {
   scrollbar-width: thin;
   scrollbar-color: var(--gray) transparent;
@@ -10908,6 +10914,18 @@ var canvas_default = `.canvas-page {
 }
 .canvas-node-file .canvas-node-content > .canvas-file-link:hover {
   text-decoration: underline;
+}
+
+.canvas-node-image {
+  overflow: hidden;
+  padding: 0;
+}
+.canvas-node-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  margin: 0;
 }
 
 .canvas-node-link {
@@ -11740,18 +11758,43 @@ var CanvasBody_default = ((userOpts) => {
 });
 
 // src/pageType.ts
-function renderMarkdown(text5) {
-  const html5 = micromark(text5, {
+var IMAGE_EXT = /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$/i;
+function findVaultFile(target, canvasPath, allFiles) {
+  const norm = target.replace(/^\.?\//, "");
+  if (allFiles.includes(norm)) return norm;
+  if (norm.includes("/")) {
+    const suffix = allFiles.find((f3) => f3 === norm || f3.endsWith(`/${norm}`));
+    if (suffix) return suffix;
+  }
+  const dir = canvasPath.split("/").slice(0, -1).join("/");
+  const sameFolder = dir ? `${dir}/${norm}` : norm;
+  if (allFiles.includes(sameFolder)) return sameFolder;
+  const base = norm.split("/").pop()?.toLowerCase();
+  return allFiles.find((f3) => f3.toLowerCase().split("/").pop() === base);
+}
+function resolveWikiImageEmbeds(text5, canvasPath, canvasSlug, allFiles) {
+  return text5.replace(/!\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/g, (whole, rawTarget, alias) => {
+    const target = rawTarget.trim();
+    if (!IMAGE_EXT.test(target)) return whole;
+    const vaultPath = findVaultFile(target, canvasPath, allFiles);
+    if (!vaultPath) return whole;
+    const url = resolveRelative(canvasSlug, slugifyFilePath(vaultPath));
+    const altText = (alias ?? target).trim().replace(/[[\]]/g, "");
+    return `![${altText}](${url})`;
+  });
+}
+function renderMarkdown(text5, canvasPath, canvasSlug, allFiles) {
+  const html5 = micromark(resolveWikiImageEmbeds(text5, canvasPath, canvasSlug, allFiles), {
     extensions: [gfm()],
     htmlExtensions: [gfmHtml()]
   });
   return html5.replace(/>\n+</g, "><").trim();
 }
-function preprocessCanvasData(data) {
+function preprocessCanvasData(data, canvasPath, canvasSlug, allFiles) {
   const renderedTexts = {};
   for (const node of data.nodes ?? []) {
     if (node.type === "text" && node.text) {
-      renderedTexts[node.id] = renderMarkdown(node.text);
+      renderedTexts[node.id] = renderMarkdown(node.text, canvasPath, canvasSlug, allFiles);
     }
   }
   return { ...data, renderedTexts };
@@ -11778,7 +11821,7 @@ var CanvasPage = (opts) => ({
       }
       const baseName = filePath.replace(/\.canvas$/, "").split("/").pop() ?? "Canvas";
       const slug2 = slugifyFilePath(filePath);
-      const processedData = preprocessCanvasData(canvasData);
+      const processedData = preprocessCanvasData(canvasData, filePath, slug2, ctx.allFiles);
       virtualPages.push({
         slug: slug2,
         title: baseName,

@@ -2383,6 +2383,12 @@ var canvas_default = `.canvas-page {
 .canvas-node-content > :last-child {
   margin-bottom: 0;
 }
+.canvas-node-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin: 0;
+}
 .canvas-node-content {
   scrollbar-width: thin;
   scrollbar-color: var(--gray) transparent;
@@ -2503,6 +2509,18 @@ var canvas_default = `.canvas-page {
 }
 .canvas-node-file .canvas-node-content > .canvas-file-link:hover {
   text-decoration: underline;
+}
+
+.canvas-node-image {
+  overflow: hidden;
+  padding: 0;
+}
+.canvas-node-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  margin: 0;
 }
 
 .canvas-node-link {

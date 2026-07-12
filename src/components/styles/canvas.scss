@@ -75,6 +75,14 @@
     margin-bottom: 0;
   }
 
+  // Embedded images (Obsidian `![[img]]` / Markdown `![](img)`) fit the card.
+  img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    margin: 0; // reset Quartz's global img margin-top
+  }
+
   // Thin, subtle scrollbar so a genuinely scrollable card looks the same across
   // platforms instead of getting a chunky classic bar on Windows/Linux.
   scrollbar-width: thin;
@@ -213,6 +221,23 @@
     &:hover {
       text-decoration: underline;
     }
+  }
+}
+
+// Image file nodes: the <img> fills the node, clipped to its rounded border.
+// Without this the raw image sits top-left of the flex box, leaving a strip of
+// node background above it and spilling out the bottom (`.canvas-node-file` sets
+// overflow: visible).
+.canvas-node-image {
+  overflow: hidden;
+  padding: 0;
+
+  img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    margin: 0; // reset Quartz's global img margin-top, which offsets the image
   }
 }
 
