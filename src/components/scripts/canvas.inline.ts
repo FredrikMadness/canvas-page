@@ -14,12 +14,15 @@ function initCanvas() {
     const frame = container.closest('.page[data-frame="canvas"]') as HTMLElement | null;
 
     // Show the sidebar by default; `defaultFullscreen` opts a canvas into
-    // starting with it hidden (canvas fills the viewport). Applied before
-    // centering so the initial fit accounts for the sidebar's width. All
-    // transitions in the frame are disabled for this first layout so the
-    // sidebar is simply *present* rather than sliding/animating in, then
+    // starting with it hidden (canvas fills the viewport). Skipped on narrow
+    // (mobile) viewports, where the sidebar is nearly full-width (see the
+    // max-width: 800px breakpoint in canvas.scss) and would cover the canvas.
+    // Applied before centering so the initial fit accounts for the sidebar's
+    // width. All transitions in the frame are disabled for this first layout so
+    // the sidebar is simply *present* rather than sliding/animating in, then
     // re-enabled so manual toggles still animate.
-    if (frame && !defaultFullscreen) {
+    const isNarrowViewport = window.matchMedia("(max-width: 800px)").matches;
+    if (frame && !defaultFullscreen && !isNarrowViewport) {
       frame.classList.add("canvas-init-no-transition", "canvas-sidebar-open");
       void frame.offsetWidth; // force reflow so the open layout commits with no transition
       requestAnimationFrame(() => {
