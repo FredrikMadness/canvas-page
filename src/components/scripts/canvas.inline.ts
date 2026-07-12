@@ -70,6 +70,12 @@ function initCanvas() {
     const cleanupFns: Array<() => void> = [];
 
     if (enableInteraction) {
+      // Wheel-zoom speed knobs (higher = faster):
+      //  - sensitivity scales smooth pixel-mode zoom (trackpad pinch, most mice)
+      //  - step is the per-notch factor for coarse line/page mode (e.g. FF mouse)
+      const ZOOM_WHEEL_SENSITIVITY = 0.0025;
+      const ZOOM_WHEEL_STEP = 1.2;
+
       // Wheel input maps to three behaviours, matching Obsidian: a trackpad
       // *pinch* (or Ctrl/Cmd + wheel) zooms, a trackpad *two-finger swipe* pans,
       // and a *mouse wheel* zooms. Pinch is unambiguous (the browser sets
@@ -78,9 +84,9 @@ function initCanvas() {
       const zoomFactorFromWheel = (e: WheelEvent) =>
         e.deltaMode !== 0
           ? e.deltaY > 0
-            ? 0.9
-            : 1.1 // line/page mode (e.g. Firefox mouse wheel)
-          : Math.pow(1.0015, -e.deltaY); // pixel mode (trackpad pinch, most mice)
+            ? 1 / ZOOM_WHEEL_STEP
+            : ZOOM_WHEEL_STEP // line/page mode (e.g. Firefox mouse wheel)
+          : Math.exp(-e.deltaY * ZOOM_WHEEL_SENSITIVITY); // pixel mode
 
       // Heuristic: mouse wheels report coarse, vertical-only, integer steps;
       // trackpads report fine/fractional deltas, often with a horizontal
@@ -93,20 +99,18 @@ function initCanvas() {
         return Math.abs(e.deltaY) < 40; // small steps → trackpad; coarse → mouse wheel
       };
 
-      // Let a scrollable card consume the gesture before the canvas reacts, so
-      // scrolling inside a card scrolls it; once it reaches the top/bottom the
-      // canvas takes over (panning on trackpad, zooming on mouse).
-      const shouldScrollCard = (e: WheelEvent) => {
-        const scrollable =
-          e.target instanceof HTMLElement ? e.target.closest(".canvas-node-content") : null;
-        if (!scrollable) return false;
-        if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return false; // horizontal gesture
-        if (scrollable.scrollHeight <= scrollable.clientHeight) return false;
-        const atTop = scrollable.scrollTop <= 0;
-        const atBottom =
-          scrollable.scrollTop + scrollable.clientHeight >= scrollable.scrollHeight - 1;
-        if (atTop && e.deltaY < 0) return false; // past the top → hand to canvas
-        if (atBottom && e.deltaY > 0) return false; // past the bottom → hand to canvas
+      // Can `el` still scroll in the gesture's dominant direction (i.e. it's
+      // scrollable and not already pinned at that edge)?
+      const canScrollInDirection = (el: HTMLElement, e: WheelEvent) => {
+        if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+          if (el.scrollWidth <= el.clientWidth) return false;
+          if (el.scrollLeft <= 0 && e.deltaX < 0) return false;
+          if (el.scrollLeft + el.clientWidth >= el.scrollWidth - 1 && e.deltaX > 0) return false;
+          return true;
+        }
+        if (el.scrollHeight <= el.clientHeight) return false;
+        if (el.scrollTop <= 0 && e.deltaY < 0) return false;
+        if (el.scrollTop + el.clientHeight >= el.scrollHeight - 1 && e.deltaY > 0) return false;
         return true;
       };
 
@@ -115,16 +119,31 @@ function initCanvas() {
         const cx = e.clientX - rect.left;
         const cy = e.clientY - rect.top;
 
-        // Pinch (trackpad) or Ctrl/Cmd + wheel → zoom, always.
+        // Pinch (trackpad) or Ctrl/Cmd + wheel → zoom, always (a deliberate zoom).
         if (e.ctrlKey || e.metaKey) {
           e.preventDefault();
           zoomAt(zoomFactorFromWheel(e), cx, cy);
           return;
         }
 
-        // Otherwise let a hovered card scroll its own content first.
-        if (shouldScrollCard(e)) return;
+        // Over a node (but not a group container): keep the gesture inside the
+        // card. Scroll its content if it can; otherwise swallow the event. Never
+        // pan/zoom the canvas from over a card, so a swipe or scroll can't
+        // "escape" the card once it hits the top/bottom.
+        const card =
+          e.target instanceof HTMLElement
+            ? e.target.closest(".canvas-node:not(.canvas-node-group)")
+            : null;
+        if (card) {
+          const content = card.querySelector(".canvas-node-content");
+          if (content instanceof HTMLElement && canScrollInDirection(content, e)) {
+            return; // let the browser scroll the card
+          }
+          e.preventDefault(); // consume — don't move the canvas
+          return;
+        }
 
+        // Empty canvas → pan (trackpad) or zoom (mouse).
         e.preventDefault();
         if (isTrackpadSwipe(e)) {
           panX -= e.deltaX;
