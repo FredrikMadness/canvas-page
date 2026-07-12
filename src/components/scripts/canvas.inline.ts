@@ -33,6 +33,10 @@ function initCanvas() {
     const minZoom = parseFloat(container.dataset.minZoom ?? "") || 0.1;
     const maxZoom = parseFloat(container.dataset.maxZoom ?? "") || 5;
     let zoom = parseFloat(container.dataset.initialZoom ?? "") || 1;
+    let targetZoom = zoom;
+    let zoomAnchorX = 0;
+    let zoomAnchorY = 0;
+    let zoomRaf = 0;
     let panX = 0;
     let panY = 0;
     let isPanning = false;
@@ -55,6 +59,11 @@ function initCanvas() {
 
       panX = (containerRect.width - vw * zoom) / 2;
       panY = (containerRect.height - vh * zoom) / 2;
+      targetZoom = zoom;
+      if (zoomRaf) {
+        cancelAnimationFrame(zoomRaf);
+        zoomRaf = 0;
+      }
       applyTransform();
     };
 
@@ -75,15 +84,30 @@ function initCanvas() {
       resetBtn.style.display = changed ? "flex" : "none";
     };
 
-    // Zoom by `factor`, keeping the point (cx, cy) — in container-local pixels —
-    // visually fixed (e.g. under the cursor).
-    const zoomAt = (factor: number, cx: number, cy: number) => {
+    // Smooth (eased) zoom: pinches/wheel accumulate into `targetZoom`, and an
+    // animation loop eases the live zoom toward it while keeping the focal point
+    // (zoomAnchor) fixed — so zooming settles gently after the pinch stops
+    // (Obsidian-like) instead of snapping to a halt on the last event.
+    const ZOOM_SMOOTHING = 0.2;
+
+    const stepZoom = () => {
       const prevZoom = zoom;
-      zoom = Math.max(minZoom, Math.min(maxZoom, zoom * factor));
-      panX = cx - (cx - panX) * (zoom / prevZoom);
-      panY = cy - (cy - panY) * (zoom / prevZoom);
+      zoom += (targetZoom - zoom) * ZOOM_SMOOTHING;
+      if (Math.abs(targetZoom - zoom) < 0.0005) zoom = targetZoom;
+      panX = zoomAnchorX - (zoomAnchorX - panX) * (zoom / prevZoom);
+      panY = zoomAnchorY - (zoomAnchorY - panY) * (zoom / prevZoom);
       applyTransform();
       updateResetButton();
+      zoomRaf = zoom === targetZoom ? 0 : requestAnimationFrame(stepZoom);
+    };
+
+    // Ease toward `targetZoom * factor`, keeping (cx, cy) — container-local
+    // pixels — visually fixed (e.g. under the cursor).
+    const zoomToward = (factor: number, cx: number, cy: number) => {
+      targetZoom = Math.max(minZoom, Math.min(maxZoom, targetZoom * factor));
+      zoomAnchorX = cx;
+      zoomAnchorY = cy;
+      if (!zoomRaf) zoomRaf = requestAnimationFrame(stepZoom);
     };
 
     const cleanupFns: Array<() => void> = [];
@@ -118,6 +142,12 @@ function initCanvas() {
         return Math.abs(e.deltaY) < 40; // small steps → trackpad; coarse → mouse wheel
       };
 
+      // Does `el` overflow (have a scrollbar) in the gesture's dominant axis?
+      const isScrollable = (el: HTMLElement, e: WheelEvent) =>
+        Math.abs(e.deltaX) > Math.abs(e.deltaY)
+          ? el.scrollWidth > el.clientWidth
+          : el.scrollHeight > el.clientHeight;
+
       // Can `el` still scroll in the gesture's dominant direction (i.e. it's
       // scrollable and not already pinned at that edge)?
       const canScrollInDirection = (el: HTMLElement, e: WheelEvent) => {
@@ -141,25 +171,25 @@ function initCanvas() {
         // Pinch (trackpad) or Ctrl/Cmd + wheel → zoom, always (a deliberate zoom).
         if (e.ctrlKey || e.metaKey) {
           e.preventDefault();
-          zoomAt(zoomFactorFromWheel(e), cx, cy);
+          zoomToward(zoomFactorFromWheel(e), cx, cy);
           return;
         }
 
-        // Over a node (but not a group container): keep the gesture inside the
-        // card. Scroll its content if it can; otherwise swallow the event. Never
-        // pan/zoom the canvas from over a card, so a swipe or scroll can't
-        // "escape" the card once it hits the top/bottom.
+        // Over a card whose content actually scrolls: keep the gesture inside
+        // it — scroll while it can, then swallow the event at the edge so a
+        // swipe/scroll can't "escape" the card. Cards that don't scroll (short
+        // text, images) fall through so you can pan the canvas across them.
         const card =
           e.target instanceof HTMLElement
             ? e.target.closest(".canvas-node:not(.canvas-node-group)")
             : null;
         if (card) {
           const content = card.querySelector(".canvas-node-content");
-          if (content instanceof HTMLElement && canScrollInDirection(content, e)) {
-            return; // let the browser scroll the card
+          if (content instanceof HTMLElement && isScrollable(content, e)) {
+            if (canScrollInDirection(content, e)) return; // let the browser scroll it
+            e.preventDefault(); // pinned at the edge — don't escape
+            return;
           }
-          e.preventDefault(); // consume — don't move the canvas
-          return;
         }
 
         // Empty canvas → pan (trackpad) or zoom (mouse).
@@ -170,7 +200,7 @@ function initCanvas() {
           applyTransform();
           updateResetButton();
         } else {
-          zoomAt(zoomFactorFromWheel(e), cx, cy);
+          zoomToward(zoomFactorFromWheel(e), cx, cy);
         }
       };
 
@@ -255,6 +285,7 @@ function initCanvas() {
           const scale = dist / lastTouchDist;
           const prevZoom = zoom;
           zoom = Math.max(minZoom, Math.min(maxZoom, zoom * scale));
+          targetZoom = zoom; // touch pinch is direct; keep the eased target in sync
 
           panX = cx - (cx - panX) * (zoom / prevZoom);
           panY = cy - (cy - panY) * (zoom / prevZoom);
@@ -321,8 +352,12 @@ function initCanvas() {
 
     const zoomAtCenter = (factor: number) => {
       const rect = container.getBoundingClientRect();
-      zoomAt(factor, rect.width / 2, rect.height / 2);
+      zoomToward(factor, rect.width / 2, rect.height / 2);
     };
+
+    cleanupFns.push(() => {
+      if (zoomRaf) cancelAnimationFrame(zoomRaf);
+    });
 
     if (zoomInBtn) {
       const onZoomIn = () => {
