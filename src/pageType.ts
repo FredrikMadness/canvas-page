@@ -10,6 +10,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import { micromark } from "micromark";
 import { gfm, gfmHtml } from "micromark-extension-gfm";
+import GithubSlugger from "github-slugger";
 import CanvasBody from "./components/CanvasBody";
 import type { CanvasData, CanvasPageOptions } from "./types";
 
@@ -67,13 +68,89 @@ function resolveWikiImageEmbeds(
   });
 }
 
+/**
+ * Resolve an Obsidian link target (a note name, usually without extension) to a
+ * vault Markdown file: exact path, suffix, the canvas's own folder, then a
+ * matching basename anywhere (preferring `.md`). Returns undefined if unresolved.
+ */
+function findVaultPage(
+  target: string,
+  canvasPath: string,
+  allFiles: readonly FilePath[],
+): FilePath | undefined {
+  const stripExt = (f: string) => f.replace(/\.md$/i, "");
+  const norm = stripExt(target.replace(/^\.?\//, ""));
+  const lower = norm.toLowerCase();
+
+  const exact = allFiles.find((f) => stripExt(f).toLowerCase() === lower);
+  if (exact) return exact;
+  if (norm.includes("/")) {
+    const suffix = allFiles.find((f) => stripExt(f).toLowerCase().endsWith(`/${lower}`));
+    if (suffix) return suffix;
+  }
+
+  const dir = canvasPath.split("/").slice(0, -1).join("/");
+  if (dir) {
+    const sameFolder = `${dir}/${norm}`.toLowerCase();
+    const hit = allFiles.find((f) => stripExt(f).toLowerCase() === sameFolder);
+    if (hit) return hit;
+  }
+
+  const wantBase = lower.split("/").pop();
+  const matches = allFiles.filter(
+    (f) => stripExt(f.split("/").pop() ?? "").toLowerCase() === wantBase,
+  );
+  return matches.find((f) => /\.md$/i.test(f)) ?? matches[0];
+}
+
+const escapeAttr = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+const escapeText = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/**
+ * Convert Obsidian internal links (`[[Note]]`, `[[Note|alias]]`, `[[Note#heading]]`)
+ * into Quartz internal anchors resolved against the vault, so they render and get
+ * hover popovers like file-node links. micromark has no `[[...]]` syntax, so
+ * otherwise they survive as literal text. Run *after* image embeds so `![[...]]`
+ * is already handled; unresolved links are left untouched.
+ */
+function resolveWikiLinks(
+  text: string,
+  canvasPath: string,
+  canvasSlug: FullSlug,
+  allFiles: readonly FilePath[],
+): string {
+  return text.replace(
+    /\[\[([^\]|#]+)(?:#([^\]|]+))?(?:\|([^\]]*))?\]\]/g,
+    (whole, rawTarget, rawSub, rawAlias) => {
+      const target = (rawTarget as string).trim();
+      const page = findVaultPage(target, canvasPath, allFiles);
+      if (!page) return whole;
+
+      const slug = slugifyFilePath(page);
+      let href = resolveRelative(canvasSlug, slug) as string;
+      const sub = (rawSub as string | undefined)?.trim();
+      if (sub) href += sub.startsWith("^") ? `#${sub}` : `#${new GithubSlugger().slug(sub)}`;
+
+      const label = (
+        ((rawAlias as string | undefined)?.trim() ||
+          (sub ? `${target} › ${sub}` : target)) as string
+      ).trim();
+      return `<a href="${escapeAttr(href)}" class="internal" data-slug="${escapeAttr(slug)}">${escapeText(label)}</a>`;
+    },
+  );
+}
+
 function renderMarkdown(
   text: string,
   canvasPath: string,
   canvasSlug: FullSlug,
   allFiles: readonly FilePath[],
 ): string {
-  const html = micromark(resolveWikiImageEmbeds(text, canvasPath, canvasSlug, allFiles), {
+  const withEmbeds = resolveWikiImageEmbeds(text, canvasPath, canvasSlug, allFiles);
+  const withLinks = resolveWikiLinks(withEmbeds, canvasPath, canvasSlug, allFiles);
+  const html = micromark(withLinks, {
+    allowDangerousHtml: true,
     extensions: [gfm()],
     htmlExtensions: [gfmHtml()],
   });

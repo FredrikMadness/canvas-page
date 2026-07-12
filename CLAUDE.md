@@ -118,7 +118,6 @@ canvas-page` → build) is the fallback when the symlink isn't set up.
 - Transclusion (`resolveEmbeddedHtml`) reads other pages' `htmlAst` from `allFiles` and rebases
   relative links to the canvas slug via `normalizeHastElement`. It guards against cycles with a
   `visited` set.
-
-```
-
-```
+- **Keep the README in sync.** When you add or change a user-facing feature, update `README.md` in
+  the same change — the _What this fork changes_ list (this is our fork's headline diff from
+  upstream), plus the _Features_ list and _Configuration_ table where relevant.

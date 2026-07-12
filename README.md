@@ -31,7 +31,7 @@ ExternalPlugin.CanvasPage({
 
 ## Features
 
-- **Text nodes**: Render Markdown content including headings, bold, italic, strikethrough, lists, links, and code blocks via GFM support, plus embedded images via Obsidian `![[image]]` syntax.
+- **Text nodes**: Render Markdown content including headings, bold, italic, strikethrough, lists, links, and code blocks via GFM support, plus embedded images (`![[image]]`) and internal links (`[[note]]`) via Obsidian syntax.
 - **File nodes**: Link to or transclude other pages in your vault, with popover previews on hover. Standalone image files render as images.
 - **Link nodes**: Reference external URLs.
 - **Group nodes**: Visual grouping containers with optional labels and background colors.
@@ -48,6 +48,7 @@ Compared to upstream [`quartz-community/canvas-page`](https://github.com/quartz-
 - **Obsidian-like pan & zoom.** A trackpad two-finger swipe pans and a pinch zooms; a mouse wheel zooms at the cursor. A wheel or swipe over a card scrolls that card's content and no longer "escapes" to pan or zoom the whole canvas once the card reaches its scroll edge.
 - **Curved edges.** Edges route as side-aware cubic Béziers — the curve leaves and enters each node perpendicular to its connection side (so the arrowhead points the right way) with a pronounced, Obsidian-like sweep — instead of the original side-agnostic curve that could arrive from the wrong direction.
 - **Embedded images in text nodes.** Obsidian embeds (`![[image.png]]`, `![[image.png|alt]]`) inside text nodes are rendered, with the target resolved anywhere in the vault (exact path, then the canvas's own folder, then a matching filename). Upstream only rendered standalone image file nodes.
+- **Obsidian internal links.** `[[Note]]`, `[[Note|alias]]`, and `[[Note#heading]]` links inside text nodes render as Quartz internal links — resolved across the vault, styled like other internal links, and with hover popovers. Upstream left them as literal text.
 - **Sidebar shown by default, and a working `defaultFullscreen`.** Upstream documented `defaultFullscreen` but never implemented it. Here `false` (the default) shows the sidebar; `true` starts fullscreen with the canvas filling the viewport.
 - **Cleaner image file nodes.** A standalone image fills its node and is clipped to the rounded border, fixing an offset that left a strip of node background above the image.
 - **No phantom scrollbars.** Text-node Markdown no longer overflows its card from stray inter-block newlines, so cards don't show scrollbars they can't scroll; a genuinely scrollable card gets a thin scrollbar that looks the same on macOS, Windows, and Linux.
