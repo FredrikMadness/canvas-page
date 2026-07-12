@@ -44,6 +44,28 @@ function getEdgeAnchor(node: CanvasNode, side: string | undefined): { x: number;
   }
 }
 
+const SIDE_NORMAL: Record<string, { x: number; y: number }> = {
+  top: { x: 0, y: -1 },
+  bottom: { x: 0, y: 1 },
+  left: { x: -1, y: 0 },
+  right: { x: 1, y: 0 },
+};
+
+/** Pick the side of `node` that faces `other`, for edges with no explicit side. */
+function inferSide(node: CanvasNode, other: CanvasNode): string {
+  const dx = other.x + other.width / 2 - (node.x + node.width / 2);
+  const dy = other.y + other.height / 2 - (node.y + node.height / 2);
+  if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? "right" : "left";
+  return dy >= 0 ? "bottom" : "top";
+}
+
+// Bézier control-handle length as a fraction of the straight-line distance
+// between the two anchors, with a floor so short edges still curve. Scaling to
+// the full distance (not just the along-normal component) gives the pronounced,
+// Obsidian-like sweep on edges whose endpoints are offset sideways.
+const EDGE_CURVATURE = 0.5;
+const MIN_EDGE_HANDLE = 24;
+
 const headerRegex = /^h[1-6]$/;
 
 function findPage(fileSlug: FullSlug, allFiles: QuartzPluginData[]): QuartzPluginData | undefined {
@@ -316,8 +338,10 @@ function renderEdge(edge: CanvasEdge, nodeMap: Map<string, CanvasNode>): unknown
   const toNode = nodeMap.get(edge.toNode);
   if (!fromNode || !toNode) return null;
 
-  const from = getEdgeAnchor(fromNode, edge.fromSide);
-  const to = getEdgeAnchor(toNode, edge.toSide);
+  const fromSide = edge.fromSide ?? inferSide(fromNode, toNode);
+  const toSide = edge.toSide ?? inferSide(toNode, fromNode);
+  const from = getEdgeAnchor(fromNode, fromSide);
+  const to = getEdgeAnchor(toNode, toSide);
 
   const color = resolveColor(edge.color);
   const hasFromArrow = edge.fromEnd === "arrow";
@@ -326,11 +350,24 @@ function renderEdge(edge: CanvasEdge, nodeMap: Map<string, CanvasNode>): unknown
   const markerId = `arrow-${edge.id}`;
   const markerStartId = `arrow-start-${edge.id}`;
 
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const midX = from.x + dx / 2;
-  const midY = from.y + dy / 2;
-  const pathD = `M ${from.x} ${from.y} Q ${midX} ${from.y}, ${midX} ${midY} T ${to.x} ${to.y}`;
+  // Cubic Bézier whose control handles leave each node perpendicular to its
+  // connection side, so the curve — and the arrowhead's orientation — approaches
+  // from the correct direction (e.g. straight down into a `top` side).
+  const nFrom = SIDE_NORMAL[fromSide] ?? { x: 0, y: 0 };
+  const nTo = SIDE_NORMAL[toSide] ?? { x: 0, y: 0 };
+  const handle = Math.max(
+    MIN_EDGE_HANDLE,
+    Math.hypot(to.x - from.x, to.y - from.y) * EDGE_CURVATURE,
+  );
+  const c1x = from.x + nFrom.x * handle;
+  const c1y = from.y + nFrom.y * handle;
+  const c2x = to.x + nTo.x * handle;
+  const c2y = to.y + nTo.y * handle;
+  const pathD = `M ${from.x} ${from.y} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${to.x} ${to.y}`;
+
+  // Curve midpoint (t = 0.5) for label placement.
+  const midX = 0.125 * from.x + 0.375 * c1x + 0.375 * c2x + 0.125 * to.x;
+  const midY = 0.125 * from.y + 0.375 * c1y + 0.375 * c2y + 0.125 * to.y;
 
   return (
     <g class="canvas-edge" data-edge-id={edge.id}>
