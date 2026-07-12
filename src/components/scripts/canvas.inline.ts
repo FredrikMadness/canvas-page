@@ -56,41 +56,84 @@ function initCanvas() {
       resetBtn.style.display = changed ? "flex" : "none";
     };
 
+    // Zoom by `factor`, keeping the point (cx, cy) — in container-local pixels —
+    // visually fixed (e.g. under the cursor).
+    const zoomAt = (factor: number, cx: number, cy: number) => {
+      const prevZoom = zoom;
+      zoom = Math.max(minZoom, Math.min(maxZoom, zoom * factor));
+      panX = cx - (cx - panX) * (zoom / prevZoom);
+      panY = cy - (cy - panY) * (zoom / prevZoom);
+      applyTransform();
+      updateResetButton();
+    };
+
     const cleanupFns: Array<() => void> = [];
 
     if (enableInteraction) {
-      const onWheel = (e: WheelEvent) => {
-        // If the wheel target is inside a scrollable text node, let it scroll naturally
+      // Wheel input maps to three behaviours, matching Obsidian: a trackpad
+      // *pinch* (or Ctrl/Cmd + wheel) zooms, a trackpad *two-finger swipe* pans,
+      // and a *mouse wheel* zooms. Pinch is unambiguous (the browser sets
+      // ctrlKey); telling a swipe from a mouse wheel is a heuristic, since both
+      // arrive as plain wheel events.
+      const zoomFactorFromWheel = (e: WheelEvent) =>
+        e.deltaMode !== 0
+          ? e.deltaY > 0
+            ? 0.9
+            : 1.1 // line/page mode (e.g. Firefox mouse wheel)
+          : Math.pow(1.0015, -e.deltaY); // pixel mode (trackpad pinch, most mice)
+
+      // Heuristic: mouse wheels report coarse, vertical-only, integer steps;
+      // trackpads report fine/fractional deltas, often with a horizontal
+      // component. Accepted trade-off: a fine-resolution mouse or a hard flick
+      // can occasionally be misread.
+      const isTrackpadSwipe = (e: WheelEvent) => {
+        if (e.deltaMode !== 0) return false; // coarse line/page steps → mouse wheel
+        if (e.deltaX !== 0) return true; // horizontal component → trackpad
+        if (!Number.isInteger(e.deltaY)) return true; // fractional pixels → trackpad
+        return Math.abs(e.deltaY) < 40; // small steps → trackpad; coarse → mouse wheel
+      };
+
+      // Let a scrollable card consume the gesture before the canvas reacts, so
+      // scrolling inside a card scrolls it; once it reaches the top/bottom the
+      // canvas takes over (panning on trackpad, zooming on mouse).
+      const shouldScrollCard = (e: WheelEvent) => {
         const scrollable =
           e.target instanceof HTMLElement ? e.target.closest(".canvas-node-content") : null;
-        if (scrollable) {
-          const canScroll = scrollable.scrollHeight > scrollable.clientHeight;
-          if (canScroll) {
-            const atTop = scrollable.scrollTop <= 0;
-            const atBottom =
-              scrollable.scrollTop + scrollable.clientHeight >= scrollable.scrollHeight - 1;
-            const scrollingDown = e.deltaY > 0;
-            const scrollingUp = e.deltaY < 0;
-            // Only let it through to zoom if at boundary AND scrolling past it
-            if (!(atTop && scrollingUp) && !(atBottom && scrollingDown)) {
-              return; // Let the browser scroll the text node
-            }
-          }
+        if (!scrollable) return false;
+        if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return false; // horizontal gesture
+        if (scrollable.scrollHeight <= scrollable.clientHeight) return false;
+        const atTop = scrollable.scrollTop <= 0;
+        const atBottom =
+          scrollable.scrollTop + scrollable.clientHeight >= scrollable.scrollHeight - 1;
+        if (atTop && e.deltaY < 0) return false; // past the top → hand to canvas
+        if (atBottom && e.deltaY > 0) return false; // past the bottom → hand to canvas
+        return true;
+      };
+
+      const onWheel = (e: WheelEvent) => {
+        const rect = container.getBoundingClientRect();
+        const cx = e.clientX - rect.left;
+        const cy = e.clientY - rect.top;
+
+        // Pinch (trackpad) or Ctrl/Cmd + wheel → zoom, always.
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          zoomAt(zoomFactorFromWheel(e), cx, cy);
+          return;
         }
 
+        // Otherwise let a hovered card scroll its own content first.
+        if (shouldScrollCard(e)) return;
+
         e.preventDefault();
-        const rect = container.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-
-        const prevZoom = zoom;
-        const delta = e.deltaY > 0 ? 0.9 : 1.1;
-        zoom = Math.max(minZoom, Math.min(maxZoom, zoom * delta));
-
-        panX = mouseX - (mouseX - panX) * (zoom / prevZoom);
-        panY = mouseY - (mouseY - panY) * (zoom / prevZoom);
-        applyTransform();
-        updateResetButton();
+        if (isTrackpadSwipe(e)) {
+          panX -= e.deltaX;
+          panY -= e.deltaY;
+          applyTransform();
+          updateResetButton();
+        } else {
+          zoomAt(zoomFactorFromWheel(e), cx, cy);
+        }
       };
 
       const onPointerDown = (e: PointerEvent) => {
@@ -241,14 +284,7 @@ function initCanvas() {
 
     const zoomAtCenter = (factor: number) => {
       const rect = container.getBoundingClientRect();
-      const cx = rect.width / 2;
-      const cy = rect.height / 2;
-      const prevZoom = zoom;
-      zoom = Math.max(minZoom, Math.min(maxZoom, zoom * factor));
-      panX = cx - (cx - panX) * (zoom / prevZoom);
-      panY = cy - (cy - panY) * (zoom / prevZoom);
-      applyTransform();
-      updateResetButton();
+      zoomAt(factor, rect.width / 2, rect.height / 2);
     };
 
     if (zoomInBtn) {
