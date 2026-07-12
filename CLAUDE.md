@@ -103,7 +103,8 @@ canvas-page` → build) is the fallback when the symlink isn't set up.
 - `origin` → `github.com/FredrikMadness/canvas-page.git` (our fork; the site pulls from here for
   non-local builds).
 - `upstream` → `github.com/quartz-community/canvas-page.git` (the community original).
-- Default branch is `main`. Start new work on a dedicated branch, not `main`.
+- Default branch is `main`. This is a solo repo — working directly on `main` is fine (this
+  overrides the global "always branch first" preference).
 
 ## Conventions & gotchas
 
