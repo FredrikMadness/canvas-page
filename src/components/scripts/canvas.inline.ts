@@ -39,6 +39,7 @@ function initCanvas() {
     let zoomAnchorX = 0;
     let zoomAnchorY = 0;
     let zoomRaf = 0;
+    let flyRaf = 0;
     let panX = 0;
     let panY = 0;
     let isPanning = false;
@@ -71,6 +72,13 @@ function initCanvas() {
       };
     };
 
+    const cancelFly = () => {
+      if (flyRaf) {
+        cancelAnimationFrame(flyRaf);
+        flyRaf = 0;
+      }
+    };
+
     const centerViewport = () => {
       const fit = computeFit();
       zoom = fit.zoom;
@@ -81,6 +89,7 @@ function initCanvas() {
         cancelAnimationFrame(zoomRaf);
         zoomRaf = 0;
       }
+      cancelFly();
       applyTransform();
     };
 
@@ -122,10 +131,52 @@ function initCanvas() {
     // Ease toward `targetZoom * factor`, keeping (cx, cy) — container-local
     // pixels — visually fixed (e.g. under the cursor).
     const zoomToward = (factor: number, cx: number, cy: number) => {
+      cancelFly();
       targetZoom = Math.max(minZoom, Math.min(maxZoom, targetZoom * factor));
       zoomAnchorX = cx;
       zoomAnchorY = cy;
       if (!zoomRaf) zoomRaf = requestAnimationFrame(stepZoom);
+    };
+
+    // Fly (eased) to an absolute zoom/pan target — used by double-click focus
+    // and the reset button. Runs its own loop; starting a fly cancels an
+    // in-flight anchored zoom and vice versa, and any direct pan (drag, swipe,
+    // touch) cancels the flight so the view never fights the user.
+    let flyZoom = 1;
+    let flyPanX = 0;
+    let flyPanY = 0;
+
+    const stepFly = () => {
+      zoom += (flyZoom - zoom) * ZOOM_SMOOTHING;
+      panX += (flyPanX - panX) * ZOOM_SMOOTHING;
+      panY += (flyPanY - panY) * ZOOM_SMOOTHING;
+      if (
+        Math.abs(flyZoom - zoom) < 0.0005 &&
+        Math.abs(flyPanX - panX) < 0.5 &&
+        Math.abs(flyPanY - panY) < 0.5
+      ) {
+        zoom = flyZoom;
+        panX = flyPanX;
+        panY = flyPanY;
+      }
+      targetZoom = zoom;
+      applyTransform();
+      updateResetButton();
+      flyRaf =
+        zoom === flyZoom && panX === flyPanX && panY === flyPanY
+          ? 0
+          : requestAnimationFrame(stepFly);
+    };
+
+    const flyTo = (z: number, px: number, py: number) => {
+      flyZoom = Math.max(minZoom, Math.min(maxZoom, z));
+      flyPanX = px;
+      flyPanY = py;
+      if (zoomRaf) {
+        cancelAnimationFrame(zoomRaf);
+        zoomRaf = 0;
+      }
+      if (!flyRaf) flyRaf = requestAnimationFrame(stepFly);
     };
 
     const cleanupFns: Array<() => void> = [];
@@ -260,6 +311,7 @@ function initCanvas() {
         // Empty canvas → pan (trackpad) or zoom (mouse).
         e.preventDefault();
         if (isTrackpadSwipe(e)) {
+          cancelFly();
           panX -= e.deltaX;
           panY -= e.deltaY;
           applyTransform();
@@ -287,6 +339,7 @@ function initCanvas() {
           }
         }
 
+        cancelFly();
         isPanning = true;
         startX = e.clientX - panX;
         startY = e.clientY - panY;
@@ -338,6 +391,7 @@ function initCanvas() {
           const second = e.touches[1];
           if (!first || !second) return;
           e.preventDefault();
+          cancelFly();
           isTouchZooming = true;
           isPanning = false;
           lastTouchDist = getTouchDistance(e.touches);
@@ -425,6 +479,49 @@ function initCanvas() {
       container.addEventListener("gesturechange", onGestureChange);
       container.addEventListener("gestureend", onGestureEnd);
 
+      // Double-click focuses: on a card (or group), fly the view to fit it; on
+      // the canvas background, fly back out to the default fitted view. Links
+      // and buttons keep their normal behavior. The zoom-in is capped so a
+      // small sticky note doesn't blow up to fill a large screen.
+      const DBLCLICK_FIT_MARGIN = 0.8;
+      const DBLCLICK_MAX_ZOOM = 2;
+
+      const onDblClick = (e: MouseEvent) => {
+        // Don't trust e.target: the pan handler's setPointerCapture retargets
+        // the derived click/dblclick to the container, so every double-click
+        // would look like one on the background. Hit-test the coordinates.
+        const hit = document.elementFromPoint(e.clientX, e.clientY);
+        if (!(hit instanceof HTMLElement)) return;
+        if (hit.closest("a") || hit.closest("button")) return;
+
+        const card = hit.closest(".canvas-node") as HTMLElement | null;
+        if (!card) {
+          flyTo(defaultZoom, defaultPanX, defaultPanY);
+          return;
+        }
+
+        // Undo the current pan/zoom to get the card's world-space box, then
+        // compute the zoom/pan that centers it with a margin.
+        const containerRect = container.getBoundingClientRect();
+        const rect = card.getBoundingClientRect();
+        const wx = (rect.left - containerRect.left - panX) / zoom;
+        const wy = (rect.top - containerRect.top - panY) / zoom;
+        const ww = rect.width / zoom;
+        const wh = rect.height / zoom;
+        const z = Math.min(
+          (containerRect.width / ww) * DBLCLICK_FIT_MARGIN,
+          (containerRect.height / wh) * DBLCLICK_FIT_MARGIN,
+          DBLCLICK_MAX_ZOOM,
+        );
+        flyTo(
+          z,
+          (containerRect.width - ww * z) / 2 - wx * z,
+          (containerRect.height - wh * z) / 2 - wy * z,
+        );
+      };
+
+      container.addEventListener("dblclick", onDblClick);
+
       cleanupFns.push(() => {
         container.removeEventListener("wheel", onWheel);
         container.removeEventListener("pointerdown", onPointerDown);
@@ -438,6 +535,7 @@ function initCanvas() {
         container.removeEventListener("gesturestart", onGestureStart);
         container.removeEventListener("gesturechange", onGestureChange);
         container.removeEventListener("gestureend", onGestureEnd);
+        container.removeEventListener("dblclick", onDblClick);
       });
     }
 
@@ -468,6 +566,7 @@ function initCanvas() {
 
     cleanupFns.push(() => {
       if (zoomRaf) cancelAnimationFrame(zoomRaf);
+      cancelFly();
     });
 
     if (zoomInBtn) {
@@ -487,12 +586,10 @@ function initCanvas() {
     }
 
     if (resetBtn) {
+      // The default view is kept current by the resize observer, so resetting
+      // is just an eased flight back to it.
       const onReset = () => {
-        centerViewport();
-        defaultZoom = zoom;
-        defaultPanX = panX;
-        defaultPanY = panY;
-        updateResetButton();
+        flyTo(defaultZoom, defaultPanX, defaultPanY);
       };
       resetBtn.addEventListener("click", onReset);
       cleanupFns.push(() => resetBtn.removeEventListener("click", onReset));

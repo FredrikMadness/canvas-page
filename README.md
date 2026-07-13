@@ -36,7 +36,7 @@ ExternalPlugin.CanvasPage({
 - **Link nodes**: Reference external URLs.
 - **Group nodes**: Visual grouping containers with optional labels and background colors.
 - **Edges**: Curved SVG connections that leave and enter nodes from the correct side, with optional labels, arrow markers, and colors. Supports all four sides and both preset colors (1–6) and custom hex colors.
-- **Pan & zoom**: Trackpad two-finger swipe to pan and pinch to zoom; mouse wheel zooms at the cursor.
+- **Pan & zoom**: Trackpad two-finger swipe to pan and pinch to zoom; mouse wheel zooms at the cursor. Double-click a card to zoom to it, double-click the background to return to the fitted view.
 - **Sidebar**: A collapsible sidebar (shown by default) alongside the canvas stage.
 - **Fullscreen mode**: Configurable default via `defaultFullscreen`; embedded canvases also get a fullscreen toggle button.
 - **Preset colors**: Six preset colors (red, orange, yellow, green, cyan, purple) plus custom hex colors for nodes and edges.
@@ -51,6 +51,7 @@ Compared to upstream [`quartz-community/canvas-page`](https://github.com/quartz-
 - **Obsidian internal links.** `[[Note]]`, `[[Note|alias]]`, and `[[Note#heading]]` links inside text nodes render as Quartz internal links — resolved across the vault, styled like other internal links, and with hover popovers. Upstream left them as literal text.
 - **Sidebar shown by default, and a working `defaultFullscreen`.** Upstream documented `defaultFullscreen` but never implemented it. Here `false` (the default) shows the sidebar; `true` starts fullscreen with the canvas filling the viewport.
 - **Cleaner image file nodes.** A standalone image fills its node and is clipped to the rounded border, fixing an offset that left a strip of node background above the image.
+- **Double-click to focus.** Double-clicking a card (or group) flies the view to fit it; double-clicking the background flies back out to the full board. The reset-view button eases home the same way.
 - **The view keeps up with layout changes.** Resizing the window, toggling the sidebar, or entering fullscreen re-fits an untouched view to the new space, while a view you've panned or zoomed stays visually anchored in place. `initialZoom` works (upstream read it and then immediately overwrote it) and now acts as a multiplier on the fitted view.
 - **No phantom scrollbars.** Text-node Markdown no longer overflows its card from stray inter-block newlines, so cards don't show scrollbars they can't scroll; a genuinely scrollable card gets a thin scrollbar that looks the same on macOS, Windows, and Linux — and only shows while the pointer is over the card, like Obsidian.
 - **Obsidian-like headings and group labels.** Headings inside cards use a compact, graduated scale (with `h5`/`h6` as small-caps) instead of Quartz's full-page heading sizes, and a group's label renders as a filled, color-matched pill above its box — matching how canvases look in Obsidian.
