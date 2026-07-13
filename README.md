@@ -46,12 +46,13 @@ ExternalPlugin.CanvasPage({
 Compared to upstream [`quartz-community/canvas-page`](https://github.com/quartz-community/canvas-page):
 
 - **Obsidian-like pan & zoom.** A trackpad two-finger swipe pans and a pinch zooms; a mouse wheel zooms at the cursor. A wheel or swipe over a card scrolls that card's content and no longer "escapes" to pan or zoom the whole canvas once the card reaches its scroll edge.
-- **Curved edges.** Edges route as side-aware cubic Béziers — the curve leaves and enters each node perpendicular to its connection side (so the arrowhead points the right way) with a pronounced, Obsidian-like sweep — instead of the original side-agnostic curve that could arrive from the wrong direction.
+- **Curved edges.** Edges route as side-aware cubic Béziers — the curve leaves and enters each node perpendicular to its connection side (so the arrowhead points the right way) with a pronounced, Obsidian-like sweep — instead of the original side-agnostic curve that could arrive from the wrong direction. Edge labels sit on a text halo that fits any label length or script, replacing a background box sized by character count.
 - **Embedded images in text nodes.** Obsidian embeds (`![[image.png]]`, `![[image.png|alt]]`) inside text nodes are rendered, with the target resolved anywhere in the vault (exact path, then the canvas's own folder, then a matching filename). Upstream only rendered standalone image file nodes.
 - **Obsidian internal links.** `[[Note]]`, `[[Note|alias]]`, and `[[Note#heading]]` links inside text nodes render as Quartz internal links — resolved across the vault, styled like other internal links, and with hover popovers. Upstream left them as literal text.
 - **Sidebar shown by default, and a working `defaultFullscreen`.** Upstream documented `defaultFullscreen` but never implemented it. Here `false` (the default) shows the sidebar; `true` starts fullscreen with the canvas filling the viewport.
 - **Cleaner image file nodes.** A standalone image fills its node and is clipped to the rounded border, fixing an offset that left a strip of node background above the image.
-- **No phantom scrollbars.** Text-node Markdown no longer overflows its card from stray inter-block newlines, so cards don't show scrollbars they can't scroll; a genuinely scrollable card gets a thin scrollbar that looks the same on macOS, Windows, and Linux.
+- **The view keeps up with layout changes.** Resizing the window, toggling the sidebar, or entering fullscreen re-fits an untouched view to the new space, while a view you've panned or zoomed stays visually anchored in place. `initialZoom` works (upstream read it and then immediately overwrote it) and now acts as a multiplier on the fitted view.
+- **No phantom scrollbars.** Text-node Markdown no longer overflows its card from stray inter-block newlines, so cards don't show scrollbars they can't scroll; a genuinely scrollable card gets a thin scrollbar that looks the same on macOS, Windows, and Linux — and only shows while the pointer is over the card, like Obsidian.
 - **Obsidian-like headings and group labels.** Headings inside cards use a compact, graduated scale (with `h5`/`h6` as small-caps) instead of Quartz's full-page heading sizes, and a group's label renders as a filled, color-matched pill above its box — matching how canvases look in Obsidian.
 - **No i18n layer.** User-facing strings are hardcoded in English (the unused i18n scaffolding was removed).
 
@@ -60,7 +61,7 @@ Compared to upstream [`quartz-community/canvas-page`](https://github.com/quartz-
 | Option              | Type      | Default | Description                                                                |
 | ------------------- | --------- | ------- | -------------------------------------------------------------------------- |
 | `enableInteraction` | `boolean` | `true`  | Whether to enable pan and zoom interaction on the canvas.                  |
-| `initialZoom`       | `number`  | `1`     | The initial zoom level when the canvas is first displayed.                 |
+| `initialZoom`       | `number`  | `1`     | Zoom multiplier applied on top of the fitted view (`1` = fit to view).     |
 | `minZoom`           | `number`  | `0.1`   | The minimum zoom level allowed when zooming out.                           |
 | `maxZoom`           | `number`  | `5`     | The maximum zoom level allowed when zooming in.                            |
 | `defaultFullscreen` | `boolean` | `false` | Start canvas pages fullscreen — sidebar hidden, canvas fills the viewport. |

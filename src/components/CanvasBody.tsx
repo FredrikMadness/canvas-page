@@ -408,19 +408,9 @@ function renderEdge(edge: CanvasEdge, nodeMap: Map<string, CanvasNode>): unknown
         marker-start={hasFromArrow ? `url(#${markerStartId})` : undefined}
       />
       {edge.label && (
-        <g class="canvas-edge-label-group">
-          <rect
-            x={midX - edge.label.length * 3.5 - 4}
-            y={midY - 20}
-            width={edge.label.length * 7 + 8}
-            height={16}
-            rx="3"
-            class="canvas-edge-label-bg"
-          />
-          <text x={midX} y={midY} class="canvas-edge-label" text-anchor="middle" dy="-8">
-            {edge.label}
-          </text>
-        </g>
+        <text x={midX} y={midY} class="canvas-edge-label" text-anchor="middle" dy="-8">
+          {edge.label}
+        </text>
       )}
     </g>
   );

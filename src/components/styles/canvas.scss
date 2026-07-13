@@ -126,9 +126,11 @@
   }
 
   // Thin, subtle scrollbar so a genuinely scrollable card looks the same across
-  // platforms instead of getting a chunky classic bar on Windows/Linux.
+  // platforms instead of getting a chunky classic bar on Windows/Linux. The
+  // thumb only appears while the pointer is over the card (Obsidian-like), so
+  // an idle board doesn't show gray pills on every card that overflows.
   scrollbar-width: thin;
-  scrollbar-color: var(--gray) transparent;
+  scrollbar-color: transparent transparent;
 
   &::-webkit-scrollbar {
     width: 6px;
@@ -140,8 +142,16 @@
   }
 
   &::-webkit-scrollbar-thumb {
-    background: var(--gray);
+    background: transparent;
     border-radius: 3px;
+  }
+
+  .canvas-node:hover & {
+    scrollbar-color: var(--gray) transparent;
+
+    &::-webkit-scrollbar-thumb {
+      background: var(--gray);
+    }
   }
 }
 
@@ -413,14 +423,18 @@
   }
 }
 
-.canvas-edge-label-bg {
-  fill: var(--light);
-  fill-opacity: 0.85;
-}
-
 .canvas-edge-label {
   font-size: 0.8rem;
   fill: var(--darkgray);
+  // Halo the text with the canvas background instead of drawing a sized <rect>
+  // behind it — a stroke self-sizes to the rendered glyphs, so the "background"
+  // is right for any label length, script, or font.
+  // 6px is wide enough that the halo of adjacent glyphs also covers the edge
+  // path where it crosses the spaces between words.
+  paint-order: stroke;
+  stroke: var(--light);
+  stroke-width: 6px;
+  stroke-linejoin: round;
   pointer-events: none;
 }
 

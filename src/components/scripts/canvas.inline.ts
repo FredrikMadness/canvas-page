@@ -32,7 +32,9 @@ function initCanvas() {
 
     const minZoom = parseFloat(container.dataset.minZoom ?? "") || 0.1;
     const maxZoom = parseFloat(container.dataset.maxZoom ?? "") || 5;
-    let zoom = parseFloat(container.dataset.initialZoom ?? "") || 1;
+    // `initialZoom` multiplies the fitted zoom (1 = fit the board to the view).
+    const initialZoom = parseFloat(container.dataset.initialZoom ?? "") || 1;
+    let zoom = 1;
     let targetZoom = zoom;
     let zoomAnchorX = 0;
     let zoomAnchorY = 0;
@@ -47,18 +49,33 @@ function initCanvas() {
       viewport.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
     };
 
-    const centerViewport = () => {
+    // Fit the whole board into the container with a 10% margin. The margin only
+    // applies while the board is actually being scaled down — a board smaller
+    // than the container renders at its natural size (zoom 1), not at 90%.
+    const FIT_MARGIN = 0.9;
+
+    const computeFit = () => {
       const containerRect = container.getBoundingClientRect();
       const vw = parseFloat(viewport.style.width) || 1000;
       const vh = parseFloat(viewport.style.height) || 1000;
 
-      const scaleX = containerRect.width / vw;
-      const scaleY = containerRect.height / vh;
-      zoom = Math.min(scaleX, scaleY, 1) * 0.9;
-      zoom = Math.max(minZoom, Math.min(maxZoom, zoom));
+      const scaleX = (containerRect.width / vw) * FIT_MARGIN;
+      const scaleY = (containerRect.height / vh) * FIT_MARGIN;
+      let fitZoom = Math.min(scaleX, scaleY, 1) * initialZoom;
+      fitZoom = Math.max(minZoom, Math.min(maxZoom, fitZoom));
 
-      panX = (containerRect.width - vw * zoom) / 2;
-      panY = (containerRect.height - vh * zoom) / 2;
+      return {
+        zoom: fitZoom,
+        panX: (containerRect.width - vw * fitZoom) / 2,
+        panY: (containerRect.height - vh * fitZoom) / 2,
+      };
+    };
+
+    const centerViewport = () => {
+      const fit = computeFit();
+      zoom = fit.zoom;
+      panX = fit.panX;
+      panY = fit.panY;
       targetZoom = zoom;
       if (zoomRaf) {
         cancelAnimationFrame(zoomRaf);
@@ -75,13 +92,14 @@ function initCanvas() {
 
     const resetBtn = container.querySelector(".canvas-reset-view") as HTMLButtonElement | null;
 
+    const isAtDefaultView = () =>
+      Math.abs(zoom - defaultZoom) <= 0.001 &&
+      Math.abs(panX - defaultPanX) <= 1 &&
+      Math.abs(panY - defaultPanY) <= 1;
+
     const updateResetButton = () => {
       if (!resetBtn) return;
-      const changed =
-        Math.abs(zoom - defaultZoom) > 0.001 ||
-        Math.abs(panX - defaultPanX) > 1 ||
-        Math.abs(panY - defaultPanY) > 1;
-      resetBtn.style.display = changed ? "flex" : "none";
+      resetBtn.style.display = isAtDefaultView() ? "none" : "flex";
     };
 
     // Smooth (eased) zoom: pinches/wheel accumulate into `targetZoom`, and an
@@ -111,6 +129,45 @@ function initCanvas() {
     };
 
     const cleanupFns: Array<() => void> = [];
+
+    // Keep the view sensible across container geometry changes — window
+    // resizes, the sidebar opening/closing, entering/exiting fullscreen. An
+    // untouched (default) view re-fits to the new size; a view the user has
+    // moved stays visually anchored on screen by absorbing the container's
+    // shift into the pan. The observer fires on every frame of the sidebar's
+    // width transition, so anchoring tracks the animation instead of jumping.
+    let lastRect = container.getBoundingClientRect();
+    const onContainerResize = () => {
+      const rect = container.getBoundingClientRect();
+      if (
+        rect.left === lastRect.left &&
+        rect.top === lastRect.top &&
+        rect.width === lastRect.width &&
+        rect.height === lastRect.height
+      ) {
+        return;
+      }
+
+      const wasAtDefault = isAtDefaultView();
+      panX -= rect.left - lastRect.left;
+      panY -= rect.top - lastRect.top;
+      lastRect = rect;
+
+      const fit = computeFit();
+      defaultZoom = fit.zoom;
+      defaultPanX = fit.panX;
+      defaultPanY = fit.panY;
+      if (wasAtDefault) {
+        centerViewport();
+      } else {
+        applyTransform();
+      }
+      updateResetButton();
+    };
+
+    const resizeObserver = new ResizeObserver(onContainerResize);
+    resizeObserver.observe(container);
+    cleanupFns.push(() => resizeObserver.disconnect());
 
     if (enableInteraction) {
       // Wheel-zoom speed knobs (higher = faster):
@@ -250,6 +307,9 @@ function initCanvas() {
       container.addEventListener("pointerdown", onPointerDown);
       container.addEventListener("pointermove", onPointerMove);
       container.addEventListener("pointerup", onPointerUp);
+      // A cancelled pointer (interrupted touch, window switch) must end the pan
+      // like a release would, or `isPanning` sticks and the next move pans.
+      container.addEventListener("pointercancel", onPointerUp);
       container.addEventListener("dragstart", onDragStart);
 
       let lastTouchDist = 0;
@@ -326,6 +386,7 @@ function initCanvas() {
         container.removeEventListener("pointerdown", onPointerDown);
         container.removeEventListener("pointermove", onPointerMove);
         container.removeEventListener("pointerup", onPointerUp);
+        container.removeEventListener("pointercancel", onPointerUp);
         container.removeEventListener("dragstart", onDragStart);
         container.removeEventListener("touchstart", onTouchStart);
         container.removeEventListener("touchmove", onTouchMove);
@@ -337,18 +398,10 @@ function initCanvas() {
       ".canvas-sidebar-toggle",
     ) as HTMLButtonElement | null;
     if (frame && sidebarToggle) {
+      // The resize observer above handles the view: it re-fits an untouched
+      // view into the new space and keeps a moved view anchored on screen.
       const toggleSidebar = () => {
-        const oldRect = container.getBoundingClientRect();
         frame.classList.toggle("canvas-sidebar-open");
-
-        requestAnimationFrame(() => {
-          const newRect = container.getBoundingClientRect();
-          const shiftX = newRect.left - oldRect.left;
-          panX += shiftX;
-          defaultPanX += shiftX;
-          applyTransform();
-          updateResetButton();
-        });
       };
 
       sidebarToggle.addEventListener("click", toggleSidebar);
