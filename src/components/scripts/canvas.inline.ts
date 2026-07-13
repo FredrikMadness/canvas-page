@@ -179,6 +179,40 @@ function initCanvas() {
       if (!flyRaf) flyRaf = requestAnimationFrame(stepFly);
     };
 
+    // Fly the view to fit a card, capped so a small note doesn't blow up to
+    // fill a large screen. Shared by double-click focus and #node=<id> links.
+    const CARD_FIT_MARGIN = 0.8;
+    const CARD_MAX_ZOOM = 2;
+
+    const flyToCard = (card: HTMLElement) => {
+      // Undo the current pan/zoom to get the card's world-space box, then
+      // compute the zoom/pan that centers it with a margin.
+      const containerRect = container.getBoundingClientRect();
+      const rect = card.getBoundingClientRect();
+      const wx = (rect.left - containerRect.left - panX) / zoom;
+      const wy = (rect.top - containerRect.top - panY) / zoom;
+      const ww = rect.width / zoom;
+      const wh = rect.height / zoom;
+      const z = Math.min(
+        (containerRect.width / ww) * CARD_FIT_MARGIN,
+        (containerRect.height / wh) * CARD_FIT_MARGIN,
+        CARD_MAX_ZOOM,
+      );
+      flyTo(
+        z,
+        (containerRect.width - ww * z) / 2 - wx * z,
+        (containerRect.height - wh * z) / 2 - wy * z,
+      );
+    };
+
+    // Focusing a card puts a shareable #node=<id> in the URL (copy the address
+    // bar to link straight to that card); unfocusing clears it. replaceState
+    // keeps these updates out of the back-button history.
+    const setNodeHash = (id?: string) => {
+      const base = location.pathname + location.search;
+      history.replaceState(null, "", id ? `${base}#node=${encodeURIComponent(id)}` : base);
+    };
+
     const cleanupFns: Array<() => void> = [];
 
     // Keep the view sensible across container geometry changes — window
@@ -530,13 +564,9 @@ function initCanvas() {
       container.addEventListener("gesturechange", onGestureChange);
       container.addEventListener("gestureend", onGestureEnd);
 
-      // Double-click focuses: on a card (or group), fly the view to fit it; on
-      // the canvas background, fly back out to the default fitted view. Links
-      // and buttons keep their normal behavior. The zoom-in is capped so a
-      // small sticky note doesn't blow up to fill a large screen.
-      const DBLCLICK_FIT_MARGIN = 0.8;
-      const DBLCLICK_MAX_ZOOM = 2;
-
+      // Double-click focuses: on a card (or group), fly the view to fit it and
+      // put its #node=<id> in the URL; on the canvas background, fly back out
+      // to the default fitted view. Links and buttons keep their behavior.
       const onDblClick = (e: MouseEvent) => {
         // Don't trust e.target: the pan handler's setPointerCapture retargets
         // the derived click/dblclick to the container, so every double-click
@@ -548,27 +578,12 @@ function initCanvas() {
         const card = hit.closest(".canvas-node") as HTMLElement | null;
         if (!card) {
           flyTo(defaultZoom, defaultPanX, defaultPanY);
+          setNodeHash();
           return;
         }
 
-        // Undo the current pan/zoom to get the card's world-space box, then
-        // compute the zoom/pan that centers it with a margin.
-        const containerRect = container.getBoundingClientRect();
-        const rect = card.getBoundingClientRect();
-        const wx = (rect.left - containerRect.left - panX) / zoom;
-        const wy = (rect.top - containerRect.top - panY) / zoom;
-        const ww = rect.width / zoom;
-        const wh = rect.height / zoom;
-        const z = Math.min(
-          (containerRect.width / ww) * DBLCLICK_FIT_MARGIN,
-          (containerRect.height / wh) * DBLCLICK_FIT_MARGIN,
-          DBLCLICK_MAX_ZOOM,
-        );
-        flyTo(
-          z,
-          (containerRect.width - ww * z) / 2 - wx * z,
-          (containerRect.height - wh * z) / 2 - wy * z,
-        );
+        flyToCard(card);
+        setNodeHash(card.dataset.nodeId);
       };
 
       container.addEventListener("dblclick", onDblClick);
@@ -638,9 +653,10 @@ function initCanvas() {
 
     if (resetBtn) {
       // The default view is kept current by the resize observer, so resetting
-      // is just an eased flight back to it.
+      // is just an eased flight back to it (dropping any card deep link).
       const onReset = () => {
         flyTo(defaultZoom, defaultPanX, defaultPanY);
+        setNodeHash();
       };
       resetBtn.addEventListener("click", onReset);
       cleanupFns.push(() => resetBtn.removeEventListener("click", onReset));
@@ -688,6 +704,17 @@ function initCanvas() {
         fullscreenBtn.removeEventListener("click", onFullscreenToggle);
         document.removeEventListener("fullscreenchange", onFullscreenChange);
       });
+    }
+
+    // #node=<id> deep link: opening the page with the hash written by
+    // double-click focus flies from the initial fit to that card, so the
+    // flight itself shows where on the board the card lives.
+    const nodeHashMatch = /^#node=([^&]+)/.exec(location.hash);
+    if (nodeHashMatch && nodeHashMatch[1]) {
+      const linked = container.querySelector(
+        `.canvas-node[data-node-id="${CSS.escape(decodeURIComponent(nodeHashMatch[1]))}"]`,
+      );
+      if (linked instanceof HTMLElement) flyToCard(linked);
     }
 
     // Handle iframe load errors (CSP/X-Frame-Options blocks)

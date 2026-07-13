@@ -36,7 +36,7 @@ ExternalPlugin.CanvasPage({
 - **Link nodes**: Reference external URLs.
 - **Group nodes**: Visual grouping containers with optional labels and background colors.
 - **Edges**: Curved SVG connections that leave and enter nodes from the correct side, with optional labels, arrow markers, and colors. Supports all four sides and both preset colors (1–6) and custom hex colors.
-- **Pan & zoom**: Trackpad two-finger swipe to pan and pinch to zoom; mouse wheel zooms at the cursor. Double-click a card to zoom to it, double-click the background to return to the fitted view.
+- **Pan & zoom**: Trackpad two-finger swipe to pan and pinch to zoom; mouse wheel zooms at the cursor. Double-click a card to zoom to it (this puts a shareable `#node=<id>` link in the URL), double-click the background to return to the fitted view.
 - **Sidebar**: A collapsible sidebar (shown by default) alongside the canvas stage.
 - **Fullscreen mode**: Configurable default via `defaultFullscreen`; embedded canvases also get a fullscreen toggle button.
 - **Preset colors**: Six preset colors (red, orange, yellow, green, cyan, purple) plus custom hex colors for nodes and edges.
@@ -51,7 +51,7 @@ Compared to upstream [`quartz-community/canvas-page`](https://github.com/quartz-
 - **Obsidian internal links.** `[[Note]]`, `[[Note|alias]]`, and `[[Note#heading]]` links inside text nodes render as Quartz internal links — resolved across the vault, styled like other internal links, and with hover popovers. Upstream left them as literal text.
 - **Sidebar shown by default, and a working `defaultFullscreen`.** Upstream documented `defaultFullscreen` but never implemented it. Here `false` (the default) shows the sidebar; `true` starts fullscreen with the canvas filling the viewport.
 - **Cleaner image file nodes.** A standalone image fills its node and is clipped to the rounded border, fixing an offset that left a strip of node background above the image.
-- **Double-click to focus.** Double-clicking a card (or group) flies the view to fit it; double-clicking the background flies back out to the full board. The reset-view button eases home the same way.
+- **Double-click to focus, with shareable links.** Double-clicking a card (or group) flies the view to fit it and puts `#node=<id>` in the URL — copy the address bar to link straight to that card; opening such a link flies to the card after the initial fit. Double-clicking the background (or the reset-view button) eases back out to the full board and clears the link.
 - **The view keeps up with layout changes.** Resizing the window, toggling the sidebar, or entering fullscreen re-fits an untouched view to the new space, while a view you've panned or zoomed stays visually anchored in place. `initialZoom` works (upstream read it and then immediately overwrote it) and now acts as a multiplier on the fitted view.
 - **No phantom scrollbars.** Text-node Markdown no longer overflows its card from stray inter-block newlines, so cards don't show scrollbars they can't scroll, and a card that misses fitting by a couple of pixels of line-height rounding is treated as fitting — no scrollbar, and gestures over it pan the canvas instead of being swallowed. A genuinely scrollable card gets a thin scrollbar that looks the same on macOS, Windows, and Linux — and only shows while the pointer is over the card, like Obsidian.
 - **Clipped content fades out.** A card with more content than fits dissolves at its bottom edge instead of slicing text mid-line, and the fade lifts once the card is scrolled to the end.
