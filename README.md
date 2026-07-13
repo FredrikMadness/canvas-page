@@ -52,6 +52,7 @@ Compared to upstream [`quartz-community/canvas-page`](https://github.com/quartz-
 - **Sidebar shown by default, and a working `defaultFullscreen`.** Upstream documented `defaultFullscreen` but never implemented it. Here `false` (the default) shows the sidebar; `true` starts fullscreen with the canvas filling the viewport.
 - **Cleaner image file nodes.** A standalone image fills its node and is clipped to the rounded border, fixing an offset that left a strip of node background above the image.
 - **No phantom scrollbars.** Text-node Markdown no longer overflows its card from stray inter-block newlines, so cards don't show scrollbars they can't scroll; a genuinely scrollable card gets a thin scrollbar that looks the same on macOS, Windows, and Linux.
+- **Obsidian-like headings and group labels.** Headings inside cards use a compact, graduated scale (with `h5`/`h6` as small-caps) instead of Quartz's full-page heading sizes, and a group's label renders as a filled, color-matched pill above its box — matching how canvases look in Obsidian.
 - **No i18n layer.** User-facing strings are hardcoded in English (the unused i18n scaffolding was removed).
 
 ## Configuration

@@ -111,6 +111,8 @@ changes are pushed (and `dist/` committed) before the site rebuilds.
 - `upstream` → `github.com/quartz-community/canvas-page.git` (the community original).
 - Default branch is `main`. This is a solo repo — working directly on `main` is fine (this
   overrides the global "always branch first" preference).
+- **No pre-push review.** This repo does not use the pre-push-review workflow — commit and push
+  directly, don't run `/pre-push-review` here.
 
 ## Conventions & gotchas
 

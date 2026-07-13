@@ -10841,6 +10841,47 @@ var canvas_default = `.canvas-page {
 .canvas-node-content > :last-child {
   margin-bottom: 0;
 }
+.canvas-node-content h1,
+.canvas-node-content h2,
+.canvas-node-content h3,
+.canvas-node-content h4,
+.canvas-node-content h5,
+.canvas-node-content h6 {
+  color: var(--dark);
+  font-weight: 700;
+  line-height: 1.25;
+  margin: 0.6em 0 0.3em;
+}
+.canvas-node-content h1:first-child,
+.canvas-node-content h2:first-child,
+.canvas-node-content h3:first-child,
+.canvas-node-content h4:first-child,
+.canvas-node-content h5:first-child,
+.canvas-node-content h6:first-child {
+  margin-top: 0;
+}
+.canvas-node-content h1 {
+  font-size: 1.5em;
+}
+.canvas-node-content h2 {
+  font-size: 1.3em;
+}
+.canvas-node-content h3 {
+  font-size: 1.15em;
+}
+.canvas-node-content h4 {
+  font-size: 1em;
+}
+.canvas-node-content h5,
+.canvas-node-content h6 {
+  font-size: 0.9em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.canvas-node-content h6 {
+  color: var(--darkgray);
+}
 .canvas-node-content img {
   max-width: 100%;
   height: auto;
@@ -11047,21 +11088,33 @@ var canvas_default = `.canvas-page {
 }
 
 .canvas-node-group {
-  background: transparent;
-  border-style: dashed;
+  background: color-mix(in srgb, var(--canvas-node-color, var(--gray)) 8%, transparent);
+  border-style: solid;
+  border-width: 1px;
   border-color: var(--canvas-node-color, var(--gray));
-  border-radius: 12px;
+  border-radius: 8px;
+  box-shadow: none;
   overflow: visible;
+}
+.canvas-node-group:hover {
+  box-shadow: none;
 }
 .canvas-node-group .canvas-group-label {
   position: absolute;
-  top: -10px;
-  left: 16px;
-  padding: 0 8px;
-  background: var(--light);
-  font-size: 0.85rem;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 5px;
+  max-width: 100%;
+  padding: 3px 10px;
+  border-radius: 6px;
+  background: var(--canvas-node-color, var(--lightgray));
+  color: var(--canvas-label-fg, var(--darkgray));
+  font-size: 1rem;
   font-weight: 600;
-  color: var(--canvas-node-color, var(--darkgray));
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .canvas-edges {
@@ -11557,7 +11610,9 @@ function renderNode(node, renderedTexts, slug2, allFiles, visited) {
       ] });
     }
     case "group":
-      return /* @__PURE__ */ u2("div", { class: "canvas-node canvas-node-group", "data-node-id": node.id, style: styleStr, children: node.label && /* @__PURE__ */ u2("div", { class: "canvas-group-label", children: node.label }) });
+      return /* @__PURE__ */ u2("div", { class: "canvas-node canvas-node-group", "data-node-id": node.id, style: styleStr, children: node.label && // Colored groups get a bright pill; force dark label text for contrast.
+      // Uncolored groups keep the theme-safe default from the stylesheet.
+      /* @__PURE__ */ u2("div", { class: "canvas-group-label", style: color ? "--canvas-label-fg:#1c1c1c" : void 0, children: node.label }) });
     default:
       return null;
   }
