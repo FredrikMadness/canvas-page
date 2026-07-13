@@ -59,7 +59,11 @@
   line-height: 1.5;
   color: var(--darkgray);
   word-wrap: break-word;
-  overflow-y: auto;
+  // Scrolling is opt-in (see .canvas-content-scrollable below): the inline
+  // script enables it only when content meaningfully overflows, so a card
+  // that misses fitting by a pixel or two of line-height rounding doesn't
+  // grow a scrollbar.
+  overflow-y: hidden;
   flex: 1;
   min-height: 0;
 
@@ -151,6 +155,18 @@
 
     &::-webkit-scrollbar-thumb {
       background: var(--gray);
+    }
+  }
+
+  // Set by the inline script when content genuinely overflows. While there is
+  // still hidden content below, the bottom edge dissolves instead of slicing
+  // text mid-line — "there's more here" instead of "rendering bug". The fade
+  // lifts once the card is scrolled to its end.
+  &.canvas-content-scrollable {
+    overflow-y: auto;
+
+    &:not(.canvas-content-at-end) {
+      mask-image: linear-gradient(to bottom, black calc(100% - 28px), transparent);
     }
   }
 }

@@ -220,6 +220,53 @@ function initCanvas() {
     resizeObserver.observe(container);
     cleanupFns.push(() => resizeObserver.disconnect());
 
+    // Cards scroll only when their content meaningfully overflows. A near-fit
+    // card (a few px of line-height rounding, e.g. a one-line heading in a
+    // snug node) stays non-scrolling: no scrollbar, and wheel gestures over it
+    // pan the canvas instead of being swallowed by a 1px "scroll". Genuinely
+    // scrollable cards fade out at the bottom while content remains below
+    // (see canvas.scss); the fade lifts on reaching the end.
+    const OVERFLOW_TOLERANCE = 4;
+
+    const updateContentEnd = (content: HTMLElement) => {
+      content.classList.toggle(
+        "canvas-content-at-end",
+        content.scrollTop + content.clientHeight >= content.scrollHeight - 2,
+      );
+    };
+
+    const tagContentOverflow = (content: HTMLElement) => {
+      content.classList.toggle(
+        "canvas-content-scrollable",
+        content.scrollHeight - content.clientHeight > OVERFLOW_TOLERANCE,
+      );
+      updateContentEnd(content);
+    };
+
+    for (const content of Array.from(container.querySelectorAll(".canvas-node-content"))) {
+      if (content instanceof HTMLElement) tagContentOverflow(content);
+    }
+
+    // Scroll and <img> load events don't bubble — capture them on the
+    // container. A lazily-loaded image changes its card's height after init,
+    // so re-tag that card when it arrives.
+    const onContentScroll = (e: Event) => {
+      if (e.target instanceof HTMLElement && e.target.classList.contains("canvas-node-content")) {
+        updateContentEnd(e.target);
+      }
+    };
+    const onContentLoad = (e: Event) => {
+      const content =
+        e.target instanceof HTMLElement ? e.target.closest(".canvas-node-content") : null;
+      if (content instanceof HTMLElement) tagContentOverflow(content);
+    };
+    container.addEventListener("scroll", onContentScroll, true);
+    container.addEventListener("load", onContentLoad, true);
+    cleanupFns.push(() => {
+      container.removeEventListener("scroll", onContentScroll, true);
+      container.removeEventListener("load", onContentLoad, true);
+    });
+
     if (enableInteraction) {
       // Wheel-zoom speed knobs (higher = faster):
       //  - sensitivity scales smooth pixel-mode zoom (trackpad pinch, most mice)
@@ -250,22 +297,23 @@ function initCanvas() {
         return Math.abs(e.deltaY) < 40; // small steps → trackpad; coarse → mouse wheel
       };
 
-      // Does `el` overflow (have a scrollbar) in the gesture's dominant axis?
+      // Does `el` meaningfully overflow (beyond rounding tolerance) in the
+      // gesture's dominant axis?
       const isScrollable = (el: HTMLElement, e: WheelEvent) =>
         Math.abs(e.deltaX) > Math.abs(e.deltaY)
-          ? el.scrollWidth > el.clientWidth
-          : el.scrollHeight > el.clientHeight;
+          ? el.scrollWidth > el.clientWidth + OVERFLOW_TOLERANCE
+          : el.scrollHeight > el.clientHeight + OVERFLOW_TOLERANCE;
 
       // Can `el` still scroll in the gesture's dominant direction (i.e. it's
       // scrollable and not already pinned at that edge)?
       const canScrollInDirection = (el: HTMLElement, e: WheelEvent) => {
         if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-          if (el.scrollWidth <= el.clientWidth) return false;
+          if (el.scrollWidth <= el.clientWidth + OVERFLOW_TOLERANCE) return false;
           if (el.scrollLeft <= 0 && e.deltaX < 0) return false;
           if (el.scrollLeft + el.clientWidth >= el.scrollWidth - 1 && e.deltaX > 0) return false;
           return true;
         }
-        if (el.scrollHeight <= el.clientHeight) return false;
+        if (el.scrollHeight <= el.clientHeight + OVERFLOW_TOLERANCE) return false;
         if (el.scrollTop <= 0 && e.deltaY < 0) return false;
         if (el.scrollTop + el.clientHeight >= el.scrollHeight - 1 && e.deltaY > 0) return false;
         return true;
@@ -333,7 +381,10 @@ function initCanvas() {
           // Left button: don't hijack links/buttons or a card's scrollbar.
           if (e.target.closest("a") || e.target.closest("button")) return;
           const scrollable = e.target.closest(".canvas-node-content");
-          if (scrollable && scrollable.scrollHeight > scrollable.clientHeight) {
+          if (
+            scrollable &&
+            scrollable.scrollHeight > scrollable.clientHeight + OVERFLOW_TOLERANCE
+          ) {
             const rect = scrollable.getBoundingClientRect();
             if (e.clientX >= rect.right - 16) return;
           }
