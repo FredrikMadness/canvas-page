@@ -2642,6 +2642,7 @@ var canvas_default = `.canvas-page {
   box-shadow: none;
 }
 .canvas-node-group .canvas-group-label {
+  --_label-color: var(--canvas-node-color, var(--gray));
   position: absolute;
   bottom: 100%;
   left: 0;
@@ -2649,8 +2650,8 @@ var canvas_default = `.canvas-page {
   max-width: 100%;
   padding: 3px 10px;
   border-radius: 6px;
-  background: var(--canvas-node-color, var(--lightgray));
-  color: var(--canvas-label-fg, var(--darkgray));
+  background: color-mix(in srgb, var(--_label-color) 55%, white);
+  color: color-mix(in srgb, var(--_label-color) 38%, black);
   font-size: 1rem;
   font-weight: 600;
   line-height: 1.3;
@@ -3152,9 +3153,7 @@ function renderNode(node, renderedTexts, slug2, allFiles, visited) {
       ] });
     }
     case "group":
-      return /* @__PURE__ */ u2("div", { class: "canvas-node canvas-node-group", "data-node-id": node.id, style: styleStr, children: node.label && // Colored groups get a bright pill; force dark label text for contrast.
-      // Uncolored groups keep the theme-safe default from the stylesheet.
-      /* @__PURE__ */ u2("div", { class: "canvas-group-label", style: color ? "--canvas-label-fg:#1c1c1c" : void 0, children: node.label }) });
+      return /* @__PURE__ */ u2("div", { class: "canvas-node canvas-node-group", "data-node-id": node.id, style: styleStr, children: node.label && /* @__PURE__ */ u2("div", { class: "canvas-group-label", children: node.label }) });
     default:
       return null;
   }

@@ -372,11 +372,15 @@
     box-shadow: none;
   }
 
-  // The label is a filled pill sitting above the group's top-left corner: the
-  // group color as a solid background with dark text (the preset colors are all
-  // bright enough to carry it). Uncolored groups fall back to a theme-safe
-  // lightgray/darkgray pairing via `--canvas-label-fg`.
+  // The label is a filled pill sitting above the group's top-left corner. Like
+  // Obsidian, both the pill and its text derive from the single group color: the
+  // pill is a light, pastel tint of the color and the text is a dark, same-hue
+  // shade of it. Deriving both from one hue (rather than a flat near-black on the
+  // vivid color) keeps the label harmonious, and the pale-fill/dark-text pairing
+  // stays high-contrast in both light and dark themes. Uncolored groups fall back
+  // to gray, giving a neutral pill.
   .canvas-group-label {
+    --_label-color: var(--canvas-node-color, var(--gray));
     position: absolute;
     bottom: 100%;
     left: 0;
@@ -384,8 +388,8 @@
     max-width: 100%;
     padding: 3px 10px;
     border-radius: 6px;
-    background: var(--canvas-node-color, var(--lightgray));
-    color: var(--canvas-label-fg, var(--darkgray));
+    background: color-mix(in srgb, var(--_label-color) 55%, white);
+    color: color-mix(in srgb, var(--_label-color) 38%, black);
     font-size: 1rem;
     font-weight: 600;
     line-height: 1.3;

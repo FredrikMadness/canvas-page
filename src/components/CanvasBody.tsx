@@ -324,13 +324,7 @@ function renderNode(
     case "group":
       return (
         <div class="canvas-node canvas-node-group" data-node-id={node.id} style={styleStr}>
-          {node.label && (
-            // Colored groups get a bright pill; force dark label text for contrast.
-            // Uncolored groups keep the theme-safe default from the stylesheet.
-            <div class="canvas-group-label" style={color ? "--canvas-label-fg:#1c1c1c" : undefined}>
-              {node.label}
-            </div>
-          )}
+          {node.label && <div class="canvas-group-label">{node.label}</div>}
         </div>
       );
 
