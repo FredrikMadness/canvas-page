@@ -220,7 +220,15 @@ function initCanvas() {
         return true;
       };
 
+      // True while a Safari gesture (see below) is in progress, so wheel events
+      // fired alongside it can't zoom a second time.
+      let inGesture = false;
+
       const onWheel = (e: WheelEvent) => {
+        if (inGesture) {
+          e.preventDefault();
+          return;
+        }
         const rect = container.getBoundingClientRect();
         const cx = e.clientX - rect.left;
         const cy = e.clientY - rect.top;
@@ -381,6 +389,42 @@ function initCanvas() {
       container.addEventListener("touchmove", onTouchMove, { passive: false });
       container.addEventListener("touchend", onTouchEnd);
 
+      // Safari on macOS doesn't synthesize ctrlKey wheel events for a trackpad
+      // pinch like Chrome and Firefox do — it fires proprietary gesture events
+      // carrying a cumulative `scale` instead, so without these handlers a
+      // pinch zooms the page rather than the canvas. On iOS the same pinch
+      // also arrives as a two-finger touch, which the touch handlers above
+      // already zoom — `isTouchZooming` is set by then, so skip it here.
+      type GestureEventLike = Event & { scale: number; clientX: number; clientY: number };
+      let gestureStartZoom = 1;
+
+      const onGestureStart = (e: Event) => {
+        e.preventDefault();
+        if (isTouchZooming) return;
+        inGesture = true;
+        gestureStartZoom = targetZoom;
+      };
+
+      const onGestureChange = (e: Event) => {
+        e.preventDefault();
+        if (!inGesture) return;
+        const g = e as GestureEventLike;
+        const rect = container.getBoundingClientRect();
+        targetZoom = Math.max(minZoom, Math.min(maxZoom, gestureStartZoom * g.scale));
+        zoomAnchorX = g.clientX - rect.left;
+        zoomAnchorY = g.clientY - rect.top;
+        if (!zoomRaf) zoomRaf = requestAnimationFrame(stepZoom);
+      };
+
+      const onGestureEnd = (e: Event) => {
+        e.preventDefault();
+        inGesture = false;
+      };
+
+      container.addEventListener("gesturestart", onGestureStart);
+      container.addEventListener("gesturechange", onGestureChange);
+      container.addEventListener("gestureend", onGestureEnd);
+
       cleanupFns.push(() => {
         container.removeEventListener("wheel", onWheel);
         container.removeEventListener("pointerdown", onPointerDown);
@@ -391,6 +435,9 @@ function initCanvas() {
         container.removeEventListener("touchstart", onTouchStart);
         container.removeEventListener("touchmove", onTouchMove);
         container.removeEventListener("touchend", onTouchEnd);
+        container.removeEventListener("gesturestart", onGestureStart);
+        container.removeEventListener("gesturechange", onGestureChange);
+        container.removeEventListener("gestureend", onGestureEnd);
       });
     }
 
