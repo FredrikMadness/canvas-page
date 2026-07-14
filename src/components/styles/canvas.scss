@@ -536,10 +536,11 @@
   transition: padding-left 0.2s ease;
 }
 
-// Applied briefly at init so the default-open sidebar appears without
-// animating in; removed on the next frame so later toggles animate normally.
-.canvas-init-no-transition,
-.canvas-init-no-transition * {
+// Applied briefly (at init, and when the sidebar's default state changes as
+// the window crosses the mobile breakpoint) so the sidebar snaps to its new
+// state instead of sliding; removed on the next frame so manual toggles animate.
+.canvas-no-transition,
+.canvas-no-transition * {
   transition: none !important;
 }
 

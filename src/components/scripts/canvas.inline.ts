@@ -23,10 +23,10 @@ function initCanvas() {
     // re-enabled so manual toggles still animate.
     const isNarrowViewport = window.matchMedia("(max-width: 800px)").matches;
     if (frame && !defaultFullscreen && !isNarrowViewport) {
-      frame.classList.add("canvas-init-no-transition", "canvas-sidebar-open");
+      frame.classList.add("canvas-no-transition", "canvas-sidebar-open");
       void frame.offsetWidth; // force reflow so the open layout commits with no transition
       requestAnimationFrame(() => {
-        frame.classList.remove("canvas-init-no-transition");
+        frame.classList.remove("canvas-no-transition");
       });
     }
 
@@ -253,6 +253,22 @@ function initCanvas() {
     const resizeObserver = new ResizeObserver(onContainerResize);
     resizeObserver.observe(container);
     cleanupFns.push(() => resizeObserver.disconnect());
+
+    // Snap the sidebar to the breakpoint's default when the window is dragged
+    // across it — open on desktop, hidden on mobile (where it's near-full-width
+    // and would otherwise carry its open state over and slide in). Transitions
+    // are suppressed for the switch so it snaps rather than animating.
+    if (frame && !defaultFullscreen) {
+      const mobileMq = window.matchMedia("(max-width: 800px)");
+      const onBreakpointChange = (e: MediaQueryListEvent) => {
+        frame.classList.add("canvas-no-transition");
+        frame.classList.toggle("canvas-sidebar-open", !e.matches);
+        void frame.offsetWidth; // commit the new state before transitions return
+        requestAnimationFrame(() => frame.classList.remove("canvas-no-transition"));
+      };
+      mobileMq.addEventListener("change", onBreakpointChange);
+      cleanupFns.push(() => mobileMq.removeEventListener("change", onBreakpointChange));
+    }
 
     // Cards scroll only when their content meaningfully overflows. A near-fit
     // card (a few px of line-height rounding, e.g. a one-line heading in a
