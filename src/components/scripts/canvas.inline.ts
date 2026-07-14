@@ -254,16 +254,18 @@ function initCanvas() {
     resizeObserver.observe(container);
     cleanupFns.push(() => resizeObserver.disconnect());
 
-    // Snap the sidebar to the breakpoint's default when the window is dragged
-    // across it — open on desktop, hidden on mobile (where it's near-full-width
-    // and would otherwise carry its open state over and slide in). Transitions
-    // are suppressed for the switch so it snaps rather than animating.
-    if (frame && !defaultFullscreen) {
+    // Collapse the sidebar when the window shrinks past the mobile breakpoint,
+    // where it's near-full-width and would otherwise carry its open state over
+    // and slide in. Only one-directional: growing back to desktop leaves the
+    // sidebar as-is (don't force it open over a state the user chose).
+    // Transitions are suppressed for the switch so it snaps rather than sliding.
+    if (frame) {
       const mobileMq = window.matchMedia("(max-width: 800px)");
       const onBreakpointChange = (e: MediaQueryListEvent) => {
+        if (!e.matches) return; // entering desktop — leave the current state
         frame.classList.add("canvas-no-transition");
-        frame.classList.toggle("canvas-sidebar-open", !e.matches);
-        void frame.offsetWidth; // commit the new state before transitions return
+        frame.classList.remove("canvas-sidebar-open");
+        void frame.offsetWidth; // commit the closed state before transitions return
         requestAnimationFrame(() => frame.classList.remove("canvas-no-transition"));
       };
       mobileMq.addEventListener("change", onBreakpointChange);
