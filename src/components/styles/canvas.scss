@@ -158,15 +158,29 @@
     }
   }
 
-  // Set by the inline script when content genuinely overflows. While there is
-  // still hidden content below, the bottom edge dissolves instead of slicing
-  // text mid-line — "there's more here" instead of "rendering bug". The fade
-  // lifts once the card is scrolled to its end.
+  // Set by the inline script when content genuinely overflows. Whichever edge
+  // has hidden content past it dissolves instead of slicing text mid-line —
+  // "there's more here" instead of "rendering bug". Each edge's fade lifts at
+  // its extreme: the top once scrolled to the start, the bottom once scrolled
+  // to the end (so a fully-scrolled card fades only the top, and vice versa).
   &.canvas-content-scrollable {
     overflow-y: auto;
+    --fade-start: transparent;
+    --fade-end: transparent;
+    mask-image: linear-gradient(
+      to bottom,
+      var(--fade-start),
+      black 28px,
+      black calc(100% - 28px),
+      var(--fade-end)
+    );
 
-    &:not(.canvas-content-at-end) {
-      mask-image: linear-gradient(to bottom, black calc(100% - 28px), transparent);
+    &.canvas-content-at-start {
+      --fade-start: black;
+    }
+
+    &.canvas-content-at-end {
+      --fade-end: black;
     }
   }
 }

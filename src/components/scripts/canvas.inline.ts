@@ -258,11 +258,12 @@ function initCanvas() {
     // card (a few px of line-height rounding, e.g. a one-line heading in a
     // snug node) stays non-scrolling: no scrollbar, and wheel gestures over it
     // pan the canvas instead of being swallowed by a 1px "scroll". Genuinely
-    // scrollable cards fade out at the bottom while content remains below
-    // (see canvas.scss); the fade lifts on reaching the end.
+    // scrollable cards fade out at whichever edge still hides content (see
+    // canvas.scss); each edge's fade lifts once scrolled to that extreme.
     const OVERFLOW_TOLERANCE = 4;
 
-    const updateContentEnd = (content: HTMLElement) => {
+    const updateContentFades = (content: HTMLElement) => {
+      content.classList.toggle("canvas-content-at-start", content.scrollTop <= 2);
       content.classList.toggle(
         "canvas-content-at-end",
         content.scrollTop + content.clientHeight >= content.scrollHeight - 2,
@@ -274,7 +275,7 @@ function initCanvas() {
         "canvas-content-scrollable",
         content.scrollHeight - content.clientHeight > OVERFLOW_TOLERANCE,
       );
-      updateContentEnd(content);
+      updateContentFades(content);
     };
 
     for (const content of Array.from(container.querySelectorAll(".canvas-node-content"))) {
@@ -286,7 +287,7 @@ function initCanvas() {
     // so re-tag that card when it arrives.
     const onContentScroll = (e: Event) => {
       if (e.target instanceof HTMLElement && e.target.classList.contains("canvas-node-content")) {
-        updateContentEnd(e.target);
+        updateContentFades(e.target);
       }
     };
     const onContentLoad = (e: Event) => {
