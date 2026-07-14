@@ -19,6 +19,18 @@
   user-select: none;
   touch-action: none;
 
+  // touch-action doesn't inherit: for a touch, the browser reads it from the
+  // touched element up to that element's nearest scroll container — which for
+  // a finger on a card is the card itself, never this container. Cards are
+  // full of incidental scroll containers (`overflow: hidden` boxes, and
+  // `overflow-y: hidden` even computes overflow-x to `auto`), so without this
+  // rule Android claims a card-origin pan for native scrolling a few px in
+  // and kills it with a pointercancel. Genuinely scrollable cards re-enable
+  // vertical touch scrolling below (.canvas-content-scrollable).
+  * {
+    touch-action: none;
+  }
+
   &:active {
     cursor: grabbing;
   }
@@ -165,6 +177,18 @@
   // to the end (so a fully-scrolled card fades only the top, and vice versa).
   &.canvas-content-scrollable {
     overflow-y: auto;
+    // Re-allow native vertical touch scrolling here (the canvas-wide rule
+    // above sets `touch-action: none` on everything). The touched element's
+    // own value is what grants the gesture, so descendants need it too.
+    // `overscroll-behavior` mirrors the wheel handler's edge-pinning: a swipe
+    // that hits the card's scroll edge doesn't escape into page overscroll or
+    // pull-to-refresh.
+    overscroll-behavior: contain;
+
+    &,
+    * {
+      touch-action: pan-y;
+    }
     --fade-start: transparent;
     --fade-end: transparent;
     mask-image: linear-gradient(

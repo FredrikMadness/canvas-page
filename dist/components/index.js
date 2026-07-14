@@ -2335,6 +2335,9 @@ var canvas_default = `.canvas-page {
   user-select: none;
   touch-action: none;
 }
+.canvas-container * {
+  touch-action: none;
+}
 .canvas-container:active {
   cursor: grabbing;
 }
@@ -2453,6 +2456,13 @@ var canvas_default = `.canvas-page {
 }
 .canvas-node-content.canvas-content-scrollable {
   overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.canvas-node-content.canvas-content-scrollable,
+.canvas-node-content.canvas-content-scrollable * {
+  touch-action: pan-y;
+}
+.canvas-node-content.canvas-content-scrollable {
   --fade-start: transparent;
   --fade-end: transparent;
   mask-image: linear-gradient(to bottom, var(--fade-start), black 28px, black calc(100% - 28px), var(--fade-end));
